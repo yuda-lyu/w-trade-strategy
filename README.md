@@ -211,8 +211,9 @@ cfg 之鍵只認 `CFG_KEYS`,打錯即拋錯並列可用鍵;已正規化之 cfg �
 
 - **評估核心**:`engine: 'fast'`(預設)以 `w-trade-backtest` 之 `buildStrategyFastSession` 每次約 2~4 ms(官方約 60~100 ms),存檔前以官方 `runStrategy` 重跑並重衍生 summary／tkid／檔名,**落地口徑與完整版相同**;`engine: 'full'` 全程官方.
 - **平行**:`workers: n` 以 `worker_threads` 開 n 個 worker 各自循環求解,主程序彙整事件與停止;此時 `opt` 除事件欄位外不可含函數(改用 `closeOnly` 等旗標);`workers: 0`(預設)於本程序內循序執行,可給 `funFilterKeysNorm`／`funFilterKeysIndex`／`funFilterKeysVolumn` 等函數.
-- **事件**:`onReady({ workerId, counts, comps, engine })`、`onRound({ workerId, mode, comps, timeStart, timeEnd, candidates, ...status })`(其中 `elapsedMs` 為求解器累計耗時)、`onCandidate({ workerId, mode, comps, keys, conds, settings, summary })`(每個達門檻且存檔之候選)、`onProgress(status)`、`onError(err)`.
-- **停止**:`maxStrategies`(策略庫檔數,含既有)、`maxRounds`(總輪數)、`maxTimeMs`、`shouldStop(status) => bool`、`solver.stop()`;每輪結束檢查;`workers: 0` 起跑前亦檢查(庫已達上限即不起跑),`workers > 0` 時各 worker 至少完成首輪才受檢查;`workers > 0` 時各 worker 每輪結束等主程序放行才起下一輪,故停止條件成立時進行中之他 worker 至多再完成當輪(總輪數至多超出 `workers - 1`).
+- **事件**:`onReady({ workerId, counts, comps, engine })`、`onRound({ workerId, mode, comps, timeStart, timeEnd, candidates, ...status })`(其中 `elapsedMs` 為求解器累計耗時)、`onCandidate({ workerId, mode, comps, keys, conds, settings, summary })`(每個達門檻且存檔之候選)、`onProgress(status)`、`onError(err)`;另有放行前之 `gate`(見〈資源閘〉).
+- **停止**:`maxStrategies`(策略庫檔數,含既有)、`maxRounds`(總輪數)、`maxTimeMs`、`shouldStop(status) => bool`、`solver.stop()`;每輪結束檢查;起跑前亦檢查(`workers: 0` 與 `workers > 0` 皆然:庫已達上限、已 `stop()` 或 `shouldStop` 成立即不起跑,`workers > 0` 時不起 worker);`workers > 0` 時各 worker 每輪結束等主程序放行才起下一輪,故停止條件成立時進行中之他 worker 至多再完成當輪(總輪數至多超出 `workers - 1`).
+- **資源閘**:`gate: async ({ workerId, ...status }) => {}`,每輪起跑前(含 `workers > 0` 各 worker 之第 1 輪、`workers: 0` 之每輪)由主程序 `await` 其結果後才放行;可在其中量測 CPU／RAM,超限時延後 resolve 以暫停、回落時 resolve 以續跑.`workers > 0` 時 `gate` 於主程序執行(不傳入 worker),各 worker 之閘彼此獨立.閘 resolve 後主程序再查一次停止條件,成立即不放行,並對所有 worker(含仍在別的閘內等待者)送出停止,故閘等待期間停止條件成立不致懸置.`stop()` 隨時生效、不等閘;`shouldStop`／`maxTimeMs`／`maxStrategies` 於輪次結束與每個閘 resolve 後判定,**閘不 resolve 時這三項不會被判定**(閘內宜自行檢查停止);停止後閘之 promise 不被取消.閘拋錯(含 rejection)記入 `status().errors` 並觸發 `onError`,照常放行(不使求解卡死);已要求停止後不再呼叫閘;`maxRoundsPerWorker` 達上限之 worker 末輪後不再過閘.閘只能擋增量:暫停不會釋放 worker 已載入之記憶體.未給 `gate` 時行為不變.
 - **其他**:`fdStrategies` 指定策略庫位置(預設 `cfg.fds.strategies`,可指到任何資料夾,多個管線可共用一庫);`thsTp`／`thsSl`(止盈止損百分比候選,預設 1~10);`oml`(最佳化演算法設定,如 `{ Np, Ng, NContiguous }`,原樣傳遞至 `w-optimization`);`useShowLog`.opt 之鍵只認 `SOLVE_OPT_KEYS`,打錯即拋錯.
 - `status()` 回傳 `{ state, nRounds, nCandidates, nStrategies, nStrategiesStart, nNew, elapsedMs, workers, engine, fdStrategies, stopReason, errors }`.
 
@@ -226,7 +227,7 @@ cfg 之鍵只認 `CFG_KEYS`,打錯即拋錯並列可用鍵;已正規化之 cfg �
 | `unit-buildOhlc` | 外部陣列／函數來源、`timeBegin` 過濾、未收棒剔除、index 截齊、欄位檢核、meta 之 `changed` |
 | `unit-buildParams` | 內建目錄規模、key 命名、nm 凍結／沿用／重算、`useIndex` 與缺欄位之剔除、index 校正之凍結、`extraDefs`＋`calcs`、`series`、自帶 nm、1hr K 線之週期換算 |
 | `unit-sweep` | `buildCache`(跳過／強制)、`sweepCfgOf`、`sweepSingle`(格式、每因子每方向至多一檔、`filterKeys`、`cleanFdOut`)、`sweepPairs`(配對、`opr`、去重、`eqYrMin`) |
-| `unit-solve` | close-only 規則與 `comps` 解析、`prepareSolve` 之分類與過濾、in-process 事件與策略檔格式、各停止條件、`mode` 與 `timeEndByMode`、`workers` 之停止與收尾、函數選項與不認得之鍵、`status` |
+| `unit-solve` | close-only 規則與 `comps` 解析、`prepareSolve` 之分類與過濾、in-process 事件與策略檔格式、各停止條件、`mode` 與 `timeEndByMode`、`workers` 之停止與收尾、函數選項與不認得之鍵、`status`、資源閘 `gate`(呼叫序列與次數、閘內延遲推後該輪、閘拋錯、起跑前停止條件、閘等待期間停止之不懸置) |
 | `unit-package` | 套件結構與發布面:package.json、依賴對帳與按需引入、`toolg/gDistRollup.mjs` 之 external 寫法、npm 打包清單、`g.mjs` 離線實跑與 README 同步、JSDoc 覆蓋與範例實跑、發布內容不含通用機敏樣式(磁碟機路徑、IPv4、權杖) |
 
 共用測試件(隨包發布,下游可取用):`test/tools/synthKit.mjs`(合成 K 線與設定)、`test/tools/tmpdir.mjs`、`test/tools/jsdocExamples.mjs`.
