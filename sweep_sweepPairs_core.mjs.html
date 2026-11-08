@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>sweep/sweepPairs_core.mjs - Documentation</title>
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#CATALOG">CATALOG</a></li><li><a href="global.html#CFG_KEYS">CFG_KEYS</a></li><li><a href="global.html#COMPS_ALL">COMPS_ALL</a></li><li><a href="global.html#DERIVED_KEYS">DERIVED_KEYS</a></li><li><a href="global.html#ENDPOINT_INDEX">ENDPOINT_INDEX</a></li><li><a href="global.html#ENDPOINT_PRICE">ENDPOINT_PRICE</a></li><li><a href="global.html#EVENT_KEYS">EVENT_KEYS</a></li><li><a href="global.html#FDS">FDS</a></li><li><a href="global.html#HEADS_INDEX">HEADS_INDEX</a></li><li><a href="global.html#HEADS_PRICE">HEADS_PRICE</a></li><li><a href="global.html#INTERVALS">INTERVALS</a></li><li><a href="global.html#SOLVE_OPT_KEYS">SOLVE_OPT_KEYS</a></li><li><a href="global.html#TPS_DEFAULT">TPS_DEFAULT</a></li><li><a href="global.html#WTradeStrategy">WTradeStrategy</a></li><li><a href="global.html#allowedComps">allowedComps</a></li><li><a href="global.html#assmDefaultOf">assmDefaultOf</a></li><li><a href="global.html#binomTailGE">binomTailGE</a></li><li><a href="global.html#buildBaseBars">buildBaseBars</a></li><li><a href="global.html#buildCache">buildCache</a></li><li><a href="global.html#buildKp">buildKp</a></li><li><a href="global.html#buildOhlc">buildOhlc</a></li><li><a href="global.html#buildP2Data">buildP2Data</a></li><li><a href="global.html#buildParams">buildParams</a></li><li><a href="global.html#calcOrdersStability">calcOrdersStability</a></li><li><a href="global.html#classifyKeys">classifyKeys</a></li><li><a href="global.html#cleanFolder">cleanFolder</a></li><li><a href="global.html#compsCloseOnly">compsCloseOnly</a></li><li><a href="global.html#countJson">countJson</a></li><li><a href="global.html#createCore">createCore</a></li><li><a href="global.html#createPipeline">createPipeline</a></li><li><a href="global.html#createSolver">createSolver</a></li><li><a href="global.html#dedupStrategies">dedupStrategies</a></li><li><a href="global.html#ensureFolder">ensureFolder</a></li><li><a href="global.html#eqYrOf">eqYrOf</a></li><li><a href="global.html#fetchBinance">fetchBinance</a></li><li><a href="global.html#fieldsOf">fieldsOf</a></li><li><a href="global.html#filterKeysCloseOnly">filterKeysCloseOnly</a></li><li><a href="global.html#fpCacheOf">fpCacheOf</a></li><li><a href="global.html#funAddKeysInVbs">funAddKeysInVbs</a></li><li><a href="global.html#intervalSec">intervalSec</a></li><li><a href="global.html#isBarComplete">isBarComplete</a></li><li><a href="global.html#isKeyCloseOnly">isKeyCloseOnly</a></li><li><a href="global.html#listJsonKeys">listJsonKeys</a></li><li><a href="global.html#makeFastEngine">makeFastEngine</a></li><li><a href="global.html#makeOtt">makeOtt</a></li><li><a href="global.html#nmKeyOf">nmKeyOf</a></li><li><a href="global.html#normalizeCfg">normalizeCfg</a></li><li><a href="global.html#normalizeExternal">normalizeExternal</a></li><li><a href="global.html#nowIso">nowIso</a></li><li><a href="global.html#parfor">parfor</a></li><li><a href="global.html#parseComps">parseComps</a></li><li><a href="global.html#prepareSolve">prepareSolve</a></li><li><a href="global.html#r">r</a></li><li><a href="global.html#readCsvFolder">readCsvFolder</a></li><li><a href="global.html#readF1Factors">readF1Factors</a></li><li><a href="global.html#readJsonOr">readJsonOr</a></li><li><a href="global.html#resolveNmPeriod">resolveNmPeriod</a></li><li><a href="global.html#runRound">runRound</a></li><li><a href="global.html#serializableCfg">serializableCfg</a></li><li><a href="global.html#sliceByPeriod">sliceByPeriod</a></li><li><a href="global.html#solve">solve</a></li><li><a href="global.html#sweepCfgOf">sweepCfgOf</a></li><li><a href="global.html#sweepPairs">sweepPairs</a></li><li><a href="global.html#sweepSingle">sweepSingle</a></li><li><a href="global.html#validateDef">validateDef</a></li><li><a href="global.html#writeJson">writeJson</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">sweep/sweepPairs_core.mjs</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import get from 'lodash-es/get.js'
+import uniq from 'lodash-es/uniq.js'
+import genTid from 'w-trade-solve/src/genTid.mjs'
+import genSid from 'w-trade-solve/src/genSid.mjs'
+import calcOrdersSummarySimple from 'w-trade-backtest/src/calcOrdersSummarySimple.mjs'
+import loadKLinesTpSl from 'w-trade-backtest/src/loadKLinesTpSl.mjs'
+import calcOS from './calcOrdersStability.mjs'
+import { eqYrOf } from './common.mjs'
+import { makeOtt } from '../util/ott.mjs'
+
+
+//雙因子普測之worker核心工廠(設定由sc注入)
+//  createCore({ sc, p2data }) → core(job): 對「因子A=byMode[mode][i]」遍歷所有j>i的B配對,
+//  每對掃{and,or}×candTpsls, 候選按eqYr由高至低取「第一個通過穩定度gate」者, eqYr>eqYrMin才輸出
+//  job = { mode, i, numTradeFinMin, eqYrMin, useAssm, withMask }
+//  進場合成用位元運算(intersect=fireA&amp;fireB; union=(fireA|fireB)&amp;presA&amp;presB)
+/**
+ * 建立雙因子普測之worker核心(載入先觸快取一次，回傳逐因子A之配對工作函數)
+ *
+ * @function
+ * @param {Object} init 輸入{sc(sweepCfgOf之設定),p2data(buildP2Data之共享資料)}
+ * @returns {Function} 回傳async函數core(job) => {strategies}，job為{mode,i,numTradeFinMin,eqYrMin,useAssm,withMask}
+ * @example
+ * need test in nodejs.
+ *
+ * let core = createCore({ sc, p2data })
+ * let r = await core({ mode: 'long', i: 0, numTradeFinMin: 50, eqYrMin: 15 })
+ */
+let createCore = (init) => {
+
+    let sc = init.sc
+    let p2data = init.p2data
+    let ott = makeOtt(sc.timeZone)
+    let tbl = loadKLinesTpSl(sc.fpCache)
+
+    let trTimes = Object.keys(tbl.bars).filter((t) => t >= sc.tr.ts &amp;&amp; t &lt;= sc.tr.te)
+    let _baseCache = new Map()
+    let baseOf = (mode, tpsl) => {
+        let k = `${mode}_${tpsl}`
+        let hit = _baseCache.get(k)
+        if (hit) {
+            return hit
+        }
+        let b = calcOS.buildBaseBars(trTimes, (t) => tbl.bars[t][k], sc.exitCut)
+        _baseCache.set(k, b)
+        return b
+    }
+
+    let optOrders = { uTrade: sc.uTrade, uIni: sc.uIni, rFee: sc.rFee, maxExitTime: sc.exitCut, skipSort: true }
+
+    let intersectBits = (fireA, fireB) => {
+        let r = []
+        let nb = fireA.length
+        for (let wd = 0; wd &lt; nb; wd++) {
+            let x = fireA[wd] &amp; fireB[wd]
+            if (x) {
+                let base = wd &lt;&lt; 3
+                for (let b = 0; b &lt; 8; b++) {
+                    if (x &amp; (1 &lt;&lt; b)) {
+                        r.push(base + b)
+                    }
+                }
+            }
+        }
+        return r
+    }
+
+    let unionBitsBothPresent = (fireA, fireB, presA, presB) => {
+        let r = []
+        let nb = fireA.length
+        for (let wd = 0; wd &lt; nb; wd++) {
+            let x = (fireA[wd] | fireB[wd]) &amp; presA[wd] &amp; presB[wd]
+            if (x) {
+                let base = wd &lt;&lt; 3
+                for (let b = 0; b &lt; 8; b++) {
+                    if (x &amp; (1 &lt;&lt; b)) {
+                        r.push(base + b)
+                    }
+                }
+            }
+        }
+        return r
+    }
+
+    let buildCombo = (mode, A, B, opr, tpsl, summary = {}) => {
+        let r = tpsl / 100
+        let conds = [
+            { key: A.key, sym: A.sym, th: A.th, opr },
+            { key: B.key, sym: B.sym, th: B.th, opr },
+        ]
+        return {
+            tid: genTid(sc.name, sc.interval, mode, [A.key, B.key]),
+            sid: genSid(sc.name, sc.interval, mode, conds),
+            name: sc.name,
+            symbol: sc.symbol,
+            interval: sc.interval,
+            keyOhlc: sc.keyOhlc,
+            mode,
+            conds,
+            settings: { uIni: sc.uIni, uTrade: sc.uTrade, rTakeProfit: r, rStopLoss: r, rFee: sc.rFee },
+            summary,
+        }
+    }
+
+    let times = p2data.times
+    let presentByKey = p2data.presentByKey
+    let byMode = p2data.byMode
+    let nMaskBytes = Math.ceil(times.length / 8)
+
+    let core = async (job) => {
+
+        let mode = get(job, 'mode')
+        let i = get(job, 'i')
+        let numTradeFinMin = get(job, 'numTradeFinMin', 50)
+        let eqYrMin = get(job, 'eqYrMin', 15)
+        let useAssm = get(job, 'useAssm', false)
+        let withMask = get(job, 'withMask', false)
+
+        let fs = byMode[mode]
+        let A = fs[i]
+        let fireA = A.fire
+        let presA = presentByKey[A.key]
+
+        let strategies = []
+        for (let j = i + 1; j &lt; fs.length; j++) {
+
+            let B = fs[j]
+            let fireB = B.fire
+            let candTpsls = uniq([A.tpsl, B.tpsl])
+
+            let combos = []
+            for (let opr of ['and', 'or']) {
+                let entIdx = opr === 'and'
+                    ? intersectBits(fireA, fireB)
+                    : unionBitsBothPresent(fireA, fireB, presA, presentByKey[B.key])
+                if (!entIdx.length) {
+                    continue
+                }
+                let entTimes = entIdx.map((k) => times[k])
+                for (let tpsl of candTpsls) {
+                    let orders = tbl.ordersFromBars(mode, tpsl, entTimes, optOrders)
+                    let sm = calcOrdersSummarySimple(ott, sc.uIni, orders, sc.tr.ts, sc.tr.te, { skipSort: true })
+                    if (sm.numTradeFin &lt;= numTradeFinMin) {
+                        continue
+                    }
+                    let eqYr = eqYrOf(sm)
+                    if (eqYr === null) {
+                        continue
+                    }
+                    combos.push({ opr, tpsl, eqYr, summary: sm, entIdx, entTimes })
+                }
+            }
+
+            combos.sort((a, b) => b.eqYr - a.eqYr)
+            let chosen = null
+            for (let c of combos) {
+                if (c.eqYr &lt;= eqYrMin) {
+                    break
+                }
+                if (useAssm) {
+                    let orders = tbl.ordersFromBars(mode, c.tpsl, c.entTimes, optOrders)
+                    let st = calcOS.calcOrdersStability(baseOf(mode, c.tpsl), orders, sc.assm)
+                    if (!st.ok) {
+                        continue
+                    }
+                }
+                chosen = c
+                break
+            }
+
+            if (chosen) {
+                let s = buildCombo(mode, A, B, chosen.opr, chosen.tpsl, chosen.summary)
+                if (withMask) {
+                    let mask = new Uint8Array(nMaskBytes)
+                    for (let k of chosen.entIdx) {
+                        mask[k >> 3] |= (1 &lt;&lt; (k &amp; 7))
+                    }
+                    s._entMask = mask
+                }
+                strategies.push(s)
+            }
+
+        }
+
+        return { strategies }
+    }
+
+    return core
+}
+
+
+export default createCore
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Sun Nov 08 2026 18:01:45 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+
+
+</body>
+</html>
