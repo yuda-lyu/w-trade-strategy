@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>sweep/sweepPairs_data.mjs - Documentation</title>
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#CATALOG">CATALOG</a></li><li><a href="global.html#CFG_KEYS">CFG_KEYS</a></li><li><a href="global.html#COMPS_ALL">COMPS_ALL</a></li><li><a href="global.html#DERIVED_KEYS">DERIVED_KEYS</a></li><li><a href="global.html#ENDPOINT_INDEX">ENDPOINT_INDEX</a></li><li><a href="global.html#ENDPOINT_PRICE">ENDPOINT_PRICE</a></li><li><a href="global.html#EVENT_KEYS">EVENT_KEYS</a></li><li><a href="global.html#FDS">FDS</a></li><li><a href="global.html#HEADS_INDEX">HEADS_INDEX</a></li><li><a href="global.html#HEADS_PRICE">HEADS_PRICE</a></li><li><a href="global.html#INTERVALS">INTERVALS</a></li><li><a href="global.html#SOLVE_OPT_KEYS">SOLVE_OPT_KEYS</a></li><li><a href="global.html#TPS_DEFAULT">TPS_DEFAULT</a></li><li><a href="global.html#WTradeStrategy">WTradeStrategy</a></li><li><a href="global.html#allowedComps">allowedComps</a></li><li><a href="global.html#assmDefaultOf">assmDefaultOf</a></li><li><a href="global.html#binomTailGE">binomTailGE</a></li><li><a href="global.html#buildBaseBars">buildBaseBars</a></li><li><a href="global.html#buildCache">buildCache</a></li><li><a href="global.html#buildKp">buildKp</a></li><li><a href="global.html#buildOhlc">buildOhlc</a></li><li><a href="global.html#buildP2Data">buildP2Data</a></li><li><a href="global.html#buildParams">buildParams</a></li><li><a href="global.html#calcOrdersStability">calcOrdersStability</a></li><li><a href="global.html#classifyKeys">classifyKeys</a></li><li><a href="global.html#cleanFolder">cleanFolder</a></li><li><a href="global.html#compsCloseOnly">compsCloseOnly</a></li><li><a href="global.html#countJson">countJson</a></li><li><a href="global.html#createCore">createCore</a></li><li><a href="global.html#createPipeline">createPipeline</a></li><li><a href="global.html#createSolver">createSolver</a></li><li><a href="global.html#dedupStrategies">dedupStrategies</a></li><li><a href="global.html#ensureFolder">ensureFolder</a></li><li><a href="global.html#eqYrOf">eqYrOf</a></li><li><a href="global.html#fetchBinance">fetchBinance</a></li><li><a href="global.html#fieldsOf">fieldsOf</a></li><li><a href="global.html#filterKeysCloseOnly">filterKeysCloseOnly</a></li><li><a href="global.html#fpCacheOf">fpCacheOf</a></li><li><a href="global.html#funAddKeysInVbs">funAddKeysInVbs</a></li><li><a href="global.html#intervalSec">intervalSec</a></li><li><a href="global.html#isBarComplete">isBarComplete</a></li><li><a href="global.html#isKeyCloseOnly">isKeyCloseOnly</a></li><li><a href="global.html#listJsonKeys">listJsonKeys</a></li><li><a href="global.html#makeFastEngine">makeFastEngine</a></li><li><a href="global.html#makeOtt">makeOtt</a></li><li><a href="global.html#nmKeyOf">nmKeyOf</a></li><li><a href="global.html#normalizeCfg">normalizeCfg</a></li><li><a href="global.html#normalizeExternal">normalizeExternal</a></li><li><a href="global.html#nowIso">nowIso</a></li><li><a href="global.html#parfor">parfor</a></li><li><a href="global.html#parseComps">parseComps</a></li><li><a href="global.html#prepareSolve">prepareSolve</a></li><li><a href="global.html#r">r</a></li><li><a href="global.html#readCsvFolder">readCsvFolder</a></li><li><a href="global.html#readF1Factors">readF1Factors</a></li><li><a href="global.html#readJsonOr">readJsonOr</a></li><li><a href="global.html#resolveNmPeriod">resolveNmPeriod</a></li><li><a href="global.html#runRound">runRound</a></li><li><a href="global.html#serializableCfg">serializableCfg</a></li><li><a href="global.html#sliceByPeriod">sliceByPeriod</a></li><li><a href="global.html#solve">solve</a></li><li><a href="global.html#sweepCfgOf">sweepCfgOf</a></li><li><a href="global.html#sweepPairs">sweepPairs</a></li><li><a href="global.html#sweepSingle">sweepSingle</a></li><li><a href="global.html#validateDef">validateDef</a></li><li><a href="global.html#writeJson">writeJson</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">sweep/sweepPairs_data.mjs</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import get from 'lodash-es/get.js'
+import uniq from 'lodash-es/uniq.js'
+import isnum from 'wsemi/src/isnum.mjs'
+import dataProvide from 'w-data-tdprovide/src/WDataTdprovide.mjs'
+import readF1Factors from './readF1Factors.mjs'
+
+
+//precompute共享因子資料(抽自使用端既有管線):
+//  讀單因子策略+因子序列, 算出每因子fire(觸發遮罩)+每key present(有資料遮罩), 皆位元打包成Uint8Array, 經workerData注入每個worker
+//  回傳{ times, nBars, presentByKey(Uint8Array), byMode(各因子含fire: Uint8Array) }
+/**
+ * 預算雙因子普測之共享因子資料(各因子之觸發遮罩與各key之有資料遮罩，位元打包為Uint8Array；經workerData注入每個worker)
+ *
+ * @function
+ * @param {Object} cfg 輸入normalizeCfg正規化後之設定物件
+ * @param {Object} sc 輸入sweepCfgOf之普測設定物件
+ * @param {String} fdF1 輸入單因子策略資料夾路徑字串
+ * @param {Object} [opt={}] 輸入設定物件，預設{}
+ * @param {Integer} [opt.limit=0] 輸入每方向只取前limit個單因子，0為全量
+ * @returns {Promise} 回傳Promise，resolve為{times,nBars,presentByKey,byMode:{long,short}}
+ * @example
+ * need test in nodejs.
+ *
+ * let p2 = await buildP2Data(cfg, sc, './data/strategiesP1', { limit: 10 })
+ * console.log(p2.nBars, p2.byMode.long.length)
+ */
+let buildP2Data = async (cfg, sc, fdF1, opt = {}) => {
+
+    let limit = get(opt, 'limit', 0)
+    let provideData = dataProvide(cfg.fds.ohlc, cfg.fds.param)
+
+    let factors = readF1Factors(fdF1)
+    let byMode = {
+        long: factors.filter((f) => f.mode === 'long'),
+        short: factors.filter((f) => f.mode === 'short'),
+    }
+    if (limit > 0) {
+        byMode.long = byMode.long.slice(0, limit)
+        byMode.short = byMode.short.slice(0, limit)
+    }
+    let all = [...byMode.long, ...byMode.short]
+    if (all.length === 0) {
+        throw new Error(`單因子策略資料夾[${fdF1}]無策略, 請先執行sweepSingle`)
+    }
+
+    let ohlc = await provideData.getTimeSeriesByTimeRange(sc.keyOhlc, sc.tr.ts, sc.tr.te)
+    let nBars = ohlc.length
+    let times = ohlc.map((r) => r.time)
+    let timeIdx = new Map()
+    times.forEach((t, i) => timeIdx.set(t, i))
+    let nBytes = Math.ceil(nBars / 8)
+
+    let presentByKey = {}
+    let paramByKey = new Map()
+    for (let key of uniq(all.map((f) => f.key))) {
+        let arr = await provideData.getTimeSeriesByTimeRange(key, sc.tr.ts, sc.tr.te)
+        let pres = new Uint8Array(nBytes)
+        let param = new Float64Array(nBars).fill(NaN)
+        for (let rr of arr) {
+            let i = timeIdx.get(rr.time)
+            if (i !== undefined) {
+                pres[i >> 3] |= (1 &lt;&lt; (i &amp; 7))
+                if (isnum(rr.param)) {
+                    param[i] = rr.param
+                }
+            }
+        }
+        presentByKey[key] = pres
+        paramByKey.set(key, param)
+    }
+
+    let toShared = (fsArr) => fsArr.map((f) => {
+        let param = paramByKey.get(f.key)
+        let fire = new Uint8Array(nBytes)
+        for (let i = 0; i &lt; nBars; i++) {
+            let b = f.sym === '>' ? param[i] > f.th : param[i] &lt; f.th
+            if (b) {
+                fire[i >> 3] |= (1 &lt;&lt; (i &amp; 7))
+            }
+        }
+        return { key: f.key, sym: f.sym, th: f.th, mode: f.mode, tpsl: f.tpsl, fire }
+    })
+
+    return {
+        times,
+        nBars,
+        presentByKey,
+        byMode: { long: toShared(byMode.long), short: toShared(byMode.short) },
+    }
+}
+
+
+export default buildP2Data
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Sun Nov 08 2026 18:01:45 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+
+
+</body>
+</html>

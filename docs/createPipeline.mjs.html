@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>createPipeline.mjs - Documentation</title>
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#CATALOG">CATALOG</a></li><li><a href="global.html#CFG_KEYS">CFG_KEYS</a></li><li><a href="global.html#COMPS_ALL">COMPS_ALL</a></li><li><a href="global.html#DERIVED_KEYS">DERIVED_KEYS</a></li><li><a href="global.html#ENDPOINT_INDEX">ENDPOINT_INDEX</a></li><li><a href="global.html#ENDPOINT_PRICE">ENDPOINT_PRICE</a></li><li><a href="global.html#EVENT_KEYS">EVENT_KEYS</a></li><li><a href="global.html#FDS">FDS</a></li><li><a href="global.html#HEADS_INDEX">HEADS_INDEX</a></li><li><a href="global.html#HEADS_PRICE">HEADS_PRICE</a></li><li><a href="global.html#INTERVALS">INTERVALS</a></li><li><a href="global.html#SOLVE_OPT_KEYS">SOLVE_OPT_KEYS</a></li><li><a href="global.html#TPS_DEFAULT">TPS_DEFAULT</a></li><li><a href="global.html#WTradeStrategy">WTradeStrategy</a></li><li><a href="global.html#allowedComps">allowedComps</a></li><li><a href="global.html#assmDefaultOf">assmDefaultOf</a></li><li><a href="global.html#binomTailGE">binomTailGE</a></li><li><a href="global.html#buildBaseBars">buildBaseBars</a></li><li><a href="global.html#buildCache">buildCache</a></li><li><a href="global.html#buildKp">buildKp</a></li><li><a href="global.html#buildOhlc">buildOhlc</a></li><li><a href="global.html#buildP2Data">buildP2Data</a></li><li><a href="global.html#buildParams">buildParams</a></li><li><a href="global.html#calcOrdersStability">calcOrdersStability</a></li><li><a href="global.html#classifyKeys">classifyKeys</a></li><li><a href="global.html#cleanFolder">cleanFolder</a></li><li><a href="global.html#compsCloseOnly">compsCloseOnly</a></li><li><a href="global.html#countJson">countJson</a></li><li><a href="global.html#createCore">createCore</a></li><li><a href="global.html#createPipeline">createPipeline</a></li><li><a href="global.html#createSolver">createSolver</a></li><li><a href="global.html#dedupStrategies">dedupStrategies</a></li><li><a href="global.html#ensureFolder">ensureFolder</a></li><li><a href="global.html#eqYrOf">eqYrOf</a></li><li><a href="global.html#fetchBinance">fetchBinance</a></li><li><a href="global.html#fieldsOf">fieldsOf</a></li><li><a href="global.html#filterKeysCloseOnly">filterKeysCloseOnly</a></li><li><a href="global.html#fpCacheOf">fpCacheOf</a></li><li><a href="global.html#funAddKeysInVbs">funAddKeysInVbs</a></li><li><a href="global.html#intervalSec">intervalSec</a></li><li><a href="global.html#isBarComplete">isBarComplete</a></li><li><a href="global.html#isKeyCloseOnly">isKeyCloseOnly</a></li><li><a href="global.html#listJsonKeys">listJsonKeys</a></li><li><a href="global.html#makeFastEngine">makeFastEngine</a></li><li><a href="global.html#makeOtt">makeOtt</a></li><li><a href="global.html#nmKeyOf">nmKeyOf</a></li><li><a href="global.html#normalizeCfg">normalizeCfg</a></li><li><a href="global.html#normalizeExternal">normalizeExternal</a></li><li><a href="global.html#nowIso">nowIso</a></li><li><a href="global.html#parfor">parfor</a></li><li><a href="global.html#parseComps">parseComps</a></li><li><a href="global.html#prepareSolve">prepareSolve</a></li><li><a href="global.html#r">r</a></li><li><a href="global.html#readCsvFolder">readCsvFolder</a></li><li><a href="global.html#readF1Factors">readF1Factors</a></li><li><a href="global.html#readJsonOr">readJsonOr</a></li><li><a href="global.html#resolveNmPeriod">resolveNmPeriod</a></li><li><a href="global.html#runRound">runRound</a></li><li><a href="global.html#serializableCfg">serializableCfg</a></li><li><a href="global.html#sliceByPeriod">sliceByPeriod</a></li><li><a href="global.html#solve">solve</a></li><li><a href="global.html#sweepCfgOf">sweepCfgOf</a></li><li><a href="global.html#sweepPairs">sweepPairs</a></li><li><a href="global.html#sweepSingle">sweepSingle</a></li><li><a href="global.html#validateDef">validateDef</a></li><li><a href="global.html#writeJson">writeJson</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">createPipeline.mjs</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import path from 'path'
+import get from 'lodash-es/get.js'
+import isestr from 'wsemi/src/isestr.mjs'
+import readStrategies from 'w-trade-solve/src/readStrategies.mjs'
+import normalizeCfg from './cfg.mjs'
+import fetchBinance from './data/fetchBinance.mjs'
+import buildOhlc from './data/buildOhlc.mjs'
+import buildParams from './params/buildParams.mjs'
+import buildCache from './cache/buildCache.mjs'
+import sweepSingle from './sweep/sweepSingle.mjs'
+import sweepPairs from './sweep/sweepPairs.mjs'
+import { createSolver, solve } from './solve/solve.mjs'
+import { readJsonOr, listJsonKeys, countJson } from './util/fsx.mjs'
+
+
+/**
+ * 建立策略庫管線(以設定綁定各階段函數)
+ *
+ * 階段: fetchData(幣安抓取) → buildOhlc(整理K線序列) → buildParams(計算因子序列) → buildCache(先觸快取) → sweepSingle/sweepPairs(因子普測) 與 solve/createSolver(最佳化求解擴建策略庫)
+ * prepare(opt)依序執行fetchData(僅source為'binance'且opt.fetch不為false時)、buildOhlc、buildParams、buildCache(opt.cache為false時略過)，各階段選項由opt.fetchOpt、opt.ohlcOpt、opt.paramsOpt、opt.cacheOpt傳入，回傳{fetch?,ohlc,params,cache?}
+ *
+ * @function
+ * @param {Object} cfgIn 輸入設定物件(見normalizeCfg)
+ * @returns {Object} 回傳管線物件{cfg,fetchData,buildOhlc,buildParams,buildCache,prepare,sweepSingle,sweepPairs,solve,createSolver,readStrategies,countStrategies,status}
+ * @example
+ *
+ * let pl = createPipeline({ root: './data', name: 'ETH', symbol: 'ETHUSDT', interval: '4hr', train: { timeStart: '2022-07-01T00:00:00', timeEnd: '2025-10-06T00:00:00' } })
+ * console.log(pl.cfg.keyOhlc, typeof pl.prepare, typeof pl.solve, pl.countStrategies())
+ * // => ETH_price_4hr function function 0
+ *
+ */
+let createPipeline = (cfgIn) => {
+
+    let cfg = normalizeCfg(cfgIn)
+
+    let fdOf = (fd, def) => (isestr(fd) ? path.resolve(fd) : def)
+
+    let prepare = async (opt = {}) => {
+        let r = {}
+        if (cfg.source === 'binance' &amp;&amp; get(opt, 'fetch', true) !== false) {
+            r.fetch = await fetchBinance(cfg, get(opt, 'fetchOpt', {}))
+        }
+        r.ohlc = await buildOhlc(cfg, get(opt, 'ohlcOpt', {}))
+        r.params = await buildParams(cfg, get(opt, 'paramsOpt', {}))
+        if (get(opt, 'cache', true) !== false) {
+            r.cache = await buildCache(cfg, get(opt, 'cacheOpt', {}))
+        }
+        return r
+    }
+
+    let status = () => {
+        return {
+            cfg: { root: cfg.root, name: cfg.name, symbol: cfg.symbol, interval: cfg.interval, useIndex: cfg.useIndex, source: cfg.source === 'binance' ? 'binance' : 'external', train: cfg.train },
+            ohlc: readJsonOr(path.resolve(cfg.fds.meta, 'ohlc.json'), null),
+            params: { nKeys: listJsonKeys(cfg.fds.param).length, meta: readJsonOr(path.resolve(cfg.fds.meta, 'params.json'), null) },
+            cache: readJsonOr(path.resolve(cfg.fds.meta, 'cache.json'), null),
+            strategies: {
+                solve: countJson(cfg.fds.strategies),
+                p1: countJson(cfg.fds.strategiesP1),
+                p2: countJson(cfg.fds.strategiesP2),
+            },
+        }
+    }
+
+    return {
+        cfg,
+        fetchData: (opt = {}) => fetchBinance(cfg, opt),
+        buildOhlc: (opt = {}) => buildOhlc(cfg, opt),
+        buildParams: (opt = {}) => buildParams(cfg, opt),
+        buildCache: (opt = {}) => buildCache(cfg, opt),
+        prepare,
+        sweepSingle: (opt = {}) => sweepSingle(cfg, opt),
+        sweepPairs: (opt = {}) => sweepPairs(cfg, opt),
+        solve: (opt = {}) => solve(cfg, opt),
+        createSolver: (opt = {}) => createSolver(cfg, opt),
+        readStrategies: (fd, opt = {}) => readStrategies(fdOf(fd, cfg.fds.strategies), opt),
+        countStrategies: (fd) => countJson(fdOf(fd, cfg.fds.strategies)),
+        status,
+    }
+}
+
+
+export default createPipeline
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Sun Nov 08 2026 18:01:45 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+
+
+</body>
+</html>

@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>solve/solveRound.mjs - Documentation</title>
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#CATALOG">CATALOG</a></li><li><a href="global.html#CFG_KEYS">CFG_KEYS</a></li><li><a href="global.html#COMPS_ALL">COMPS_ALL</a></li><li><a href="global.html#DERIVED_KEYS">DERIVED_KEYS</a></li><li><a href="global.html#ENDPOINT_INDEX">ENDPOINT_INDEX</a></li><li><a href="global.html#ENDPOINT_PRICE">ENDPOINT_PRICE</a></li><li><a href="global.html#EVENT_KEYS">EVENT_KEYS</a></li><li><a href="global.html#FDS">FDS</a></li><li><a href="global.html#HEADS_INDEX">HEADS_INDEX</a></li><li><a href="global.html#HEADS_PRICE">HEADS_PRICE</a></li><li><a href="global.html#INTERVALS">INTERVALS</a></li><li><a href="global.html#SOLVE_OPT_KEYS">SOLVE_OPT_KEYS</a></li><li><a href="global.html#TPS_DEFAULT">TPS_DEFAULT</a></li><li><a href="global.html#WTradeStrategy">WTradeStrategy</a></li><li><a href="global.html#allowedComps">allowedComps</a></li><li><a href="global.html#assmDefaultOf">assmDefaultOf</a></li><li><a href="global.html#binomTailGE">binomTailGE</a></li><li><a href="global.html#buildBaseBars">buildBaseBars</a></li><li><a href="global.html#buildCache">buildCache</a></li><li><a href="global.html#buildKp">buildKp</a></li><li><a href="global.html#buildOhlc">buildOhlc</a></li><li><a href="global.html#buildP2Data">buildP2Data</a></li><li><a href="global.html#buildParams">buildParams</a></li><li><a href="global.html#calcOrdersStability">calcOrdersStability</a></li><li><a href="global.html#classifyKeys">classifyKeys</a></li><li><a href="global.html#cleanFolder">cleanFolder</a></li><li><a href="global.html#compsCloseOnly">compsCloseOnly</a></li><li><a href="global.html#countJson">countJson</a></li><li><a href="global.html#createCore">createCore</a></li><li><a href="global.html#createPipeline">createPipeline</a></li><li><a href="global.html#createSolver">createSolver</a></li><li><a href="global.html#dedupStrategies">dedupStrategies</a></li><li><a href="global.html#ensureFolder">ensureFolder</a></li><li><a href="global.html#eqYrOf">eqYrOf</a></li><li><a href="global.html#fetchBinance">fetchBinance</a></li><li><a href="global.html#fieldsOf">fieldsOf</a></li><li><a href="global.html#filterKeysCloseOnly">filterKeysCloseOnly</a></li><li><a href="global.html#fpCacheOf">fpCacheOf</a></li><li><a href="global.html#funAddKeysInVbs">funAddKeysInVbs</a></li><li><a href="global.html#intervalSec">intervalSec</a></li><li><a href="global.html#isBarComplete">isBarComplete</a></li><li><a href="global.html#isKeyCloseOnly">isKeyCloseOnly</a></li><li><a href="global.html#listJsonKeys">listJsonKeys</a></li><li><a href="global.html#makeFastEngine">makeFastEngine</a></li><li><a href="global.html#makeOtt">makeOtt</a></li><li><a href="global.html#nmKeyOf">nmKeyOf</a></li><li><a href="global.html#normalizeCfg">normalizeCfg</a></li><li><a href="global.html#normalizeExternal">normalizeExternal</a></li><li><a href="global.html#nowIso">nowIso</a></li><li><a href="global.html#parfor">parfor</a></li><li><a href="global.html#parseComps">parseComps</a></li><li><a href="global.html#prepareSolve">prepareSolve</a></li><li><a href="global.html#r">r</a></li><li><a href="global.html#readCsvFolder">readCsvFolder</a></li><li><a href="global.html#readF1Factors">readF1Factors</a></li><li><a href="global.html#readJsonOr">readJsonOr</a></li><li><a href="global.html#resolveNmPeriod">resolveNmPeriod</a></li><li><a href="global.html#runRound">runRound</a></li><li><a href="global.html#serializableCfg">serializableCfg</a></li><li><a href="global.html#sliceByPeriod">sliceByPeriod</a></li><li><a href="global.html#solve">solve</a></li><li><a href="global.html#sweepCfgOf">sweepCfgOf</a></li><li><a href="global.html#sweepPairs">sweepPairs</a></li><li><a href="global.html#sweepSingle">sweepSingle</a></li><li><a href="global.html#validateDef">validateDef</a></li><li><a href="global.html#writeJson">writeJson</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">solve/solveRound.mjs</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import path from 'path'
+import get from 'lodash-es/get.js'
+import map from 'lodash-es/map.js'
+import sample from 'lodash-es/sample.js'
+import isestr from 'wsemi/src/isestr.mjs'
+import isearr from 'wsemi/src/isearr.mjs'
+import isfun from 'wsemi/src/isfun.mjs'
+import isnum from 'wsemi/src/isnum.mjs'
+import dataProvide from 'w-data-tdprovide/src/WDataTdprovide.mjs'
+import estimFinder from 'w-trade-solve/src/estimFinder.mjs'
+import runStrategy from 'w-trade-backtest/src/runStrategy.mjs'
+import makeFastEngine from './fastEngine.mjs'
+import { filterKeysCloseOnly } from '../params/keysCloseOnly.mjs'
+import { makeOtt } from '../util/ott.mjs'
+import { ensureFolder } from '../util/fsx.mjs'
+
+
+/**
+ * 18種指標組成(與w-trade-solve estimFinder預設相同)：'a,b,c'為挑a個一般類、b個指數類、c個成交量類
+ *
+ * @type {Array}
+ */
+let COMPS_ALL = [
+    '2,0,0', '3,0,0', '4,0,0',
+    '2,1,0', '3,1,0', '4,1,0',
+    '2,2,0', '3,2,0', '4,2,0',
+    '2,0,1', '3,0,1', '4,0,1',
+    '2,1,1', '3,1,1', '4,1,1',
+    '2,2,1', '3,2,1', '4,2,1',
+]
+
+
+/**
+ * 把因子key分為三類(與w-trade-solve estimPicks同規則)：開頭'index_'為指數類、含'_vbs_'為成交量類、其餘一般類
+ *
+ * @function
+ * @param {Array} keys 輸入因子key字串陣列
+ * @returns {Object} 回傳{keysNorm,keysIndex,keysVolumn}
+ * @example
+ *
+ * console.log(JSON.stringify(classifyKeys(['index_ohlc_Close_param_ma_1day', 'price_vbs_volumn_param_maNorm_1day', 'price_ohlc_none_RSI_rsi_1day'])))
+ * // => {"keysNorm":["price_ohlc_none_RSI_rsi_1day"],"keysIndex":["index_ohlc_Close_param_ma_1day"],"keysVolumn":["price_vbs_volumn_param_maNorm_1day"]}
+ *
+ */
+let classifyKeys = (keys) => {
+    let keysNorm = []
+    let keysIndex = []
+    let keysVolumn = []
+    for (let v of keys) {
+        if (v.indexOf('index_') === 0) {
+            keysIndex.push(v)
+        }
+        else if (v.indexOf('_vbs_') >= 0) {
+            keysVolumn.push(v)
+        }
+        else {
+            keysNorm.push(v)
+        }
+    }
+    return { keysNorm, keysIndex, keysVolumn }
+}
+
+
+/**
+ * 解析指標組成字串'a,b,c'為三個非負整數
+ *
+ * @function
+ * @param {String} c 輸入組成字串
+ * @returns {Array} 回傳[a,b,c]
+ * @example
+ *
+ * console.log(parseComps('2,1,0'))
+ * // => [ 2, 1, 0 ]
+ *
+ */
+let parseComps = (c) => {
+    let cs = String(c).split(',').map((x) => Number(x))
+    if (cs.length !== 3 || cs.some((x) => !Number.isInteger(x) || x &lt; 0)) {
+        throw new Error(`invalid comps[${c}], 須為'a,b,c'三個非負整數`)
+    }
+    return cs
+}
+
+
+/**
+ * 依各類可用因子數過濾指標組成(各段不可超過該類數量，且至少挑1個key)
+ *
+ * @function
+ * @param {Object} counts 輸入各類因子數{norm,index,volumn}
+ * @param {Array} compsList 輸入組成字串陣列
+ * @returns {Array} 回傳可用之組成字串陣列
+ * @example
+ *
+ * console.log(allowedComps({ norm: 3, index: 0, volumn: 0 }, COMPS_ALL))
+ * // => [ '2,0,0', '3,0,0' ]
+ *
+ */
+let allowedComps = (counts, compsList) => {
+    return compsList.filter((c) => {
+        let cs = parseComps(c)
+        return cs[0] &lt;= counts.norm &amp;&amp; cs[1] &lt;= counts.index &amp;&amp; cs[2] &lt;= counts.volumn &amp;&amp; (cs[0] + cs[1] + cs[2]) >= 1
+    })
+}
+
+
+/**
+ * 準備求解環境(每個程序/worker一次): 剔除訓練期內無數據之因子、分類與過濾因子key、決定可用之指標組成、建立評估核心
+ *
+ * counts另含noData(訓練期內無數據而剔除之因子數)
+ *
+ * @function
+ * @param {Object} cfg 輸入normalizeCfg正規化後之設定物件(須含train)
+ * @param {Object} [opt={}] 輸入求解設定物件(見solve)
+ * @returns {Promise} 回傳Promise，resolve為{counts,comps,engine,ott,fnNorm,fnIndex,fnVolumn,fast,fdStrategies}
+ * @example
+ * need test in nodejs.
+ *
+ * let prep = await prepareSolve(cfg, { closeOnly: true })
+ * console.log(prep.counts, prep.comps)
+ */
+let prepareSolve = async (cfg, opt = {}) => {
+
+    if (!cfg.train) {
+        throw new Error(`cfg.train未給, 求解須指定訓練期`)
+    }
+
+    //fdStrategies
+    let fdStrategies = get(opt, 'fdStrategies', '')
+    fdStrategies = isestr(fdStrategies) ? path.resolve(fdStrategies) : cfg.fds.strategies
+    ensureFolder(fdStrategies)
+
+    //keysNoData, 訓練期(各方向終點取最早者)內無數據之因子: 長週期指標(如30day之adx)之序列起點可能晚於訓練期終點,
+    //  w-data-tdprovide對區間內無資料之key會throw, 隨機挑到即整輪失敗, 故於準備期算出並由下列過濾函數剔除(estimPicks自列全部key, 須經過濾函數才生效)
+    let provideData = dataProvide(cfg.fds.ohlc, cfg.fds.param)
+    let keysAll = provideData.getKeysParam()
+    let tEnds = [cfg.train.timeEnd, ...Object.values(get(cfg.train, 'timeEndByMode', {}))]
+    let tEndMin = tEnds.sort()[0]
+    let keysNoData = []
+    for (let key of keysAll) {
+        let arr = await provideData.getTimeSeriesByTimeRange(key, cfg.train.timeStart, tEndMin)
+        if (arr.length === 0) {
+            keysNoData.push(key)
+        }
+    }
+    let noData = new Set(keysNoData)
+
+    //filters, 三類各一個過濾函數(交給estimPicks): 先剔除無數據者, 再套使用者函數或closeOnly
+    let closeOnly = get(opt, 'closeOnly', false) === true
+    let fnOf = (k) => {
+        let f = get(opt, k, null)
+        if (!isfun(f) &amp;&amp; closeOnly) {
+            f = filterKeysCloseOnly
+        }
+        return async (keys) => {
+            let ks = keys.filter((key) => !noData.has(key))
+            return isfun(f) ? await f(ks) : ks
+        }
+    }
+    let fnNorm = fnOf('funFilterKeysNorm')
+    let fnIndex = fnOf('funFilterKeysIndex')
+    let fnVolumn = fnOf('funFilterKeysVolumn')
+
+    //counts, 過濾後各類因子數
+    let cls = classifyKeys(keysAll)
+    cls.keysNorm = await fnNorm(cls.keysNorm)
+    cls.keysIndex = await fnIndex(cls.keysIndex)
+    cls.keysVolumn = await fnVolumn(cls.keysVolumn)
+    let counts = { norm: cls.keysNorm.length, index: cls.keysIndex.length, volumn: cls.keysVolumn.length, noData: keysNoData.length }
+
+    //comps
+    let compsIn = get(opt, 'comps', null)
+    let compsList = isearr(compsIn) ? compsIn : (isestr(compsIn) ? [compsIn] : COMPS_ALL)
+    for (let c of compsList) {
+        parseComps(c)
+    }
+    let comps = allowedComps(counts, compsList)
+    if (comps.length === 0) {
+        throw new Error(`無可用之指標組成: 各類因子數 norm ${counts.norm}, index ${counts.index}, volumn ${counts.volumn}; 候選組成 ${JSON.stringify(compsList)}`)
+    }
+
+    //engine
+    let engine = get(opt, 'engine', 'fast') === 'full' ? 'full' : 'fast'
+    let fast = engine === 'fast' ? makeFastEngine() : null
+
+    return {
+        counts,
+        comps,
+        engine,
+        ott: makeOtt(cfg.timeZone),
+        fnNorm,
+        fnIndex,
+        fnVolumn,
+        fast,
+        fdStrategies,
+    }
+}
+
+
+/**
+ * 執行一輪求解: 隨機(或指定)交易方向與指標組成，呼叫w-trade-solve estimFinder於訓練期內率定門檻與止盈止損，達門檻之策略寫入策略庫
+ *
+ * @function
+ * @param {Object} cfg 輸入normalizeCfg正規化後之設定物件
+ * @param {Object} opt 輸入求解設定物件(見solve)
+ * @param {Object} prep 輸入prepareSolve之回傳
+ * @param {Object} [hooks={}] 輸入事件回呼{onCandidate(ev)}，onCandidate於每個達門檻且將存檔之候選策略觸發(存檔前官方重跑之後)
+ * @returns {Promise} 回傳Promise，resolve為{mode,comps,timeStart,timeEnd,candidates,elapsedMs}
+ * @example
+ * need test in nodejs.
+ *
+ * let prep = await prepareSolve(cfg, {})
+ * let r = await runRound(cfg, {}, prep, { onCandidate: (ev) => console.log(ev.keys) })
+ * console.log(r.mode, r.comps, r.candidates)
+ */
+let runRound = async (cfg, opt, prep, hooks = {}) => {
+
+    let t0 = Date.now()
+
+    //mode
+    let mode = get(opt, 'mode', '')
+    if (mode !== 'long' &amp;&amp; mode !== 'short') {
+        mode = Math.random() &lt; 0.5 ? 'long' : 'short'
+    }
+
+    //timeStart, timeEnd
+    let timeStart = cfg.train.timeStart
+    let timeEnd = get(cfg.train, `timeEndByMode.${mode}`, '')
+    if (!isestr(timeEnd)) {
+        timeEnd = cfg.train.timeEnd
+    }
+
+    //comps
+    let comps = sample(prep.comps)
+
+    //funBeforeSave, 存檔前官方重跑(落地口徑與完整版相同), 並觸發候選事件
+    let candidates = 0
+    let funBeforeSave = async ({ ott, strategy, funGetSeries }) => {
+        let r = await runStrategy(ott, strategy, funGetSeries)
+        candidates++
+        if (isfun(hooks.onCandidate)) {
+            hooks.onCandidate({
+                mode,
+                comps,
+                keys: map(strategy.conds, 'key'),
+                conds: strategy.conds,
+                settings: strategy.settings,
+                summary: r.summary,
+            })
+        }
+        return r
+    }
+
+    //o
+    let o = {
+        mode,
+        timeStart,
+        timeEnd,
+        comps,
+        methodOml: get(opt, 'methodOml', 'RGA'),
+        funFilterKeysNorm: prep.fnNorm,
+        funFilterKeysIndex: prep.fnIndex,
+        funFilterKeysVolumn: prep.fnVolumn,
+        useRunStrategyBeforeSave: true,
+        funRunStrategyCustomBeforeSave: funBeforeSave,
+        useShowLog: get(opt, 'useShowLog', false) === true,
+    }
+    if (prep.engine === 'fast') {
+        o.funRunStrategyCustom = prep.fast
+    }
+    for (let k of ['thsTp', 'thsSl']) {
+        if (isearr(opt[k])) {
+            o[k] = opt[k]
+        }
+    }
+    for (let k of ['thNumTrade', 'thRWin', 'thREquivalentCumuProfitOrLossFinalNormYear']) {
+        if (isnum(opt[k])) {
+            o[k] = opt[k]
+        }
+    }
+    if (isnum(get(opt, 'thEqYr'))) {
+        o.thREquivalentCumuProfitOrLossFinalNormYear = opt.thEqYr //別名: 最低等效年化(比例, 如0.15)
+    }
+    let oml = get(opt, 'oml', null)
+    if (oml &amp;&amp; typeof oml === 'object') {
+        o = { ...o, ...oml } //最佳化演算法設定(Np、Ng、NContiguous等, 原樣傳遞至w-optimization)
+    }
+
+    await estimFinder(prep.ott, cfg.name, cfg.symbol, cfg.interval, cfg.fds.ohlc, cfg.fds.param, prep.fdStrategies, o)
+
+    return { mode, comps, timeStart, timeEnd, candidates, elapsedMs: Date.now() - t0 }
+}
+
+
+export { COMPS_ALL, classifyKeys, parseComps, allowedComps, prepareSolve, runRound }
+export default runRound
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Sun Nov 08 2026 18:01:45 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+
+
+</body>
+</html>

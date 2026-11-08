@@ -1,0 +1,574 @@
+import path from 'path'
+import get from 'lodash-es/get.js'
+import map from 'lodash-es/map.js'
+import filter from 'lodash-es/filter.js'
+import find from 'lodash-es/find.js'
+import includes from 'lodash-es/includes.js'
+import isestr from 'wsemi/src/isestr.mjs'
+import isearr from 'wsemi/src/isearr.mjs'
+import iseobj from 'wsemi/src/iseobj.mjs'
+import isfun from 'wsemi/src/isfun.mjs'
+import isnum from 'wsemi/src/isnum.mjs'
+import istime from 'wsemi/src/istime.mjs'
+import haskey from 'wsemi/src/haskey.mjs'
+import wdt from 'w-data-trade/src/WDataTrade.mjs'
+import CATALOG from './catalog.mjs'
+import { ensureFolder, readJsonOr, writeJson, listJsonKeys, nowIso } from '../util/fsx.mjs'
+
+
+/**
+ * 建立method名稱對應計算函數之映射(供w-data-trade dataConvert與dataCalibrate呼叫)
+ *
+ * 內建method為w-data-trade之各calc(取值類orig、ma、maNorm、ema、emaNorm、vec、vecNorm與指標類kdj、macd、vortex、rsi、klr、atr、bbpb、obv、mfi、adx、donchian、supertrend、keltner、vwap、cvd、ats、ichimoku、candle)
+ * 每次呼叫皆把barsPerDay(每日K線根數)併入傳給calc之opt，使w-data-trade之週期表依K線週期等比換算(4hr為6即不換算)；呼叫端給之optMethod(index側偏移參數等)原樣保留
+ * calcs可擴充或覆寫method，函數簽章(arr, keyIn, optMethod) => rrs，rrs為各期[{period, len, vs: [{time, ...keyOuts}]}]
+ *
+ * @function
+ * @param {Object} [calcs={}] 輸入自訂計算函數物件
+ * @param {Object} [opt={}] 輸入設定物件，預設{}
+ * @param {Number} [opt.barsPerDay=6] 輸入每日K線根數，預設6(4hr)
+ * @returns {Object} 回傳method對應函數之物件
+ * @example
+ *
+ * let kp = buildKp({ myCalc: async (arr, keyIn, optMethod) => [{ period: '1bar', len: 1, vs: [] }] }, { barsPerDay: 24 })
+ * console.log(Object.keys(kp).length, typeof kp.rsi, typeof kp.myCalc)
+ * // => 26 function function
+ *
+ */
+let buildKp = (calcs = {}, opt = {}) => {
+    let barsPerDay = get(opt, 'barsPerDay', 6)
+    if (!isnum(barsPerDay) || !(barsPerDay > 0)) {
+        throw new Error(`invalid barsPerDay[${barsPerDay}]`)
+    }
+    let o = (opt2 = {}, ext = {}) => ({ barsPerDay, ...opt2, ...ext })
+    let kp = {
+        orig: async (arr, key, opt2 = {}) => wdt.calcOrig(arr, key, o(opt2)),
+        ma: (arr, key, opt2 = {}) => wdt.calcMa(arr, key, o(opt2, { norm: false })),
+        maNorm: (arr, key, opt2 = {}) => wdt.calcMa(arr, key, o(opt2, { norm: true })),
+        ema: (arr, key, opt2 = {}) => wdt.calcEma(arr, key, o(opt2, { norm: false })),
+        emaNorm: (arr, key, opt2 = {}) => wdt.calcEma(arr, key, o(opt2, { norm: true })),
+        vec: (arr, key, opt2 = {}) => wdt.calcVec(arr, key, o(opt2, { norm: false })),
+        vecNorm: (arr, key, opt2 = {}) => wdt.calcVec(arr, key, o(opt2, { norm: true })),
+        kdj: (arr, key, opt2 = {}) => wdt.calcKdj(arr, key, o(opt2)),
+        macd: (arr, key, opt2 = {}) => wdt.calcMacd(arr, key, o(opt2)),
+        vortex: (arr, key, opt2 = {}) => wdt.calcVortex(arr, key, o(opt2)),
+        rsi: (arr, key, opt2 = {}) => wdt.calcRsi(arr, key, o(opt2)),
+        klr: (arr, key, opt2 = {}) => wdt.calcKlr(arr, key, o(opt2)),
+        atr: (arr, key, opt2 = {}) => wdt.calcAtr(arr, key, o(opt2)),
+        bbpb: (arr, key, opt2 = {}) => wdt.calcBbpb(arr, key, o(opt2)),
+        obv: (arr, key, opt2 = {}) => wdt.calcObv(arr, key, o(opt2)),
+        mfi: (arr, key, opt2 = {}) => wdt.calcMfi(arr, key, o(opt2)),
+        adx: (arr, key, opt2 = {}) => wdt.calcAdx(arr, key, o(opt2)),
+        donchian: (arr, key, opt2 = {}) => wdt.calcDonchian(arr, key, o(opt2)),
+        supertrend: (arr, key, opt2 = {}) => wdt.calcSupertrend(arr, key, o(opt2)),
+        keltner: (arr, key, opt2 = {}) => wdt.calcKeltner(arr, key, o(opt2)),
+        vwap: (arr, key, opt2 = {}) => wdt.calcVwap(arr, key, o(opt2)),
+        cvd: (arr, key, opt2 = {}) => wdt.calcCvd(arr, key, o(opt2)),
+        ats: (arr, key, opt2 = {}) => wdt.calcAts(arr, key, o(opt2)),
+        ichimoku: (arr, key, opt2 = {}) => wdt.calcIchimoku(arr, key, o(opt2)),
+        candle: (arr, key, opt2 = {}) => wdt.calcCandle(arr, key, o(opt2)),
+    }
+    if (iseobj(calcs)) {
+        for (let k of Object.keys(calcs)) {
+            if (!isfun(calcs[k])) {
+                throw new Error(`opt.calcs.${k}須為函數(arr, keyIn, optMethod) => rrs`)
+            }
+            kp[k] = (arr, key, opt2 = {}) => calcs[k](arr, key, o(opt2))
+        }
+    }
+    return kp
+}
+
+
+/**
+ * 檢核參數定義並正規化(keysIn空時為['none']；未指定keyIn之deal對每個keysIn各展開一筆，使nm能逐keyIn凍結)
+ *
+ * @function
+ * @param {Object} def 輸入參數定義物件(格式見catalog.mjs檔頭)
+ * @param {Number} i 輸入於定義陣列之索引(僅用於錯誤訊息)
+ * @returns {Object} 回傳正規化後之定義{id,cointpe,keyKind,fields,keysIn,funAddKeysIn,methods}
+ * @example
+ *
+ * let def = validateDef({ id: 'price_ohlc_close', cointpe: 'price', keyKind: 'ohlc', fields: ['Close'], keysIn: ['Close'], methods: [{ method: 'maNorm', deals: [{ keyOut: 'param' }] }] }, 0)
+ * console.log(JSON.stringify(def.methods[0].deals))
+ * // => [{"keyIn":"Close","keyOut":"param","nm":null}]
+ *
+ */
+let validateDef = (def, i) => {
+    if (!iseobj(def)) {
+        throw new Error(`defs[${i}]須為物件`)
+    }
+    let id = get(def, 'id', '')
+    if (!isestr(id)) {
+        throw new Error(`defs[${i}].id須為非空字串`)
+    }
+    let cointpe = get(def, 'cointpe', '')
+    if (cointpe !== 'price' && cointpe !== 'index') {
+        throw new Error(`defs[${id}].cointpe[${cointpe}]須為'price'或'index'`)
+    }
+    let keyKind = get(def, 'keyKind', '')
+    if (!isestr(keyKind)) {
+        throw new Error(`defs[${id}].keyKind須為非空字串`)
+    }
+    let keysIn = get(def, 'keysIn', [])
+    if (!Array.isArray(keysIn)) {
+        throw new Error(`defs[${id}].keysIn須為陣列`)
+    }
+    let keysInUse = keysIn.length > 0 ? keysIn : ['none']
+    let methods = get(def, 'methods', null)
+    if (!isearr(methods)) {
+        throw new Error(`defs[${id}].methods須為非空陣列`)
+    }
+    let fields = get(def, 'fields', [])
+    if (!Array.isArray(fields)) {
+        throw new Error(`defs[${id}].fields須為陣列`)
+    }
+    let ms = map(methods, (m, j) => {
+        if (!iseobj(m) || !isestr(m.method)) {
+            throw new Error(`defs[${id}].methods[${j}].method須為非空字串`)
+        }
+        if (!isearr(m.deals)) {
+            throw new Error(`defs[${id}].methods[${j}].deals須為非空陣列`)
+        }
+        //deals, 未指定keyIn者對每個keysIn各展開一筆(使nm能逐keyIn凍結)
+        let deals = []
+        for (let d of m.deals) {
+            if (!iseobj(d) || !isestr(d.keyOut)) {
+                throw new Error(`defs[${id}].methods[${j}].deals之各元素須含keyOut`)
+            }
+            if (isestr(d.keyIn)) {
+                deals.push({ keyIn: d.keyIn, keyOut: d.keyOut, nm: iseobj(d.nm) ? d.nm : null })
+            }
+            else {
+                for (let keyIn of keysInUse) {
+                    deals.push({ keyIn, keyOut: d.keyOut, nm: iseobj(d.nm) ? d.nm : null })
+                }
+            }
+        }
+        return {
+            method: m.method,
+            optMethod: iseobj(m.optMethod) ? { ...m.optMethod } : null,
+            deals,
+        }
+    })
+    return {
+        id,
+        cointpe,
+        keyKind,
+        fields,
+        keysIn: keysInUse,
+        funAddKeysIn: isfun(def.funAddKeysIn) ? def.funAddKeysIn : null,
+        methods: ms,
+    }
+}
+
+
+/**
+ * 取K線陣列前段(至多50筆)各筆皆有數值之欄位集合(供判定定義所需欄位是否齊備)
+ *
+ * @function
+ * @param {Array} arr 輸入K線陣列
+ * @returns {Set} 回傳欄位名稱集合
+ * @example
+ *
+ * console.log([...fieldsOf([{ time: 't1', Close: 1, Volumn: 10 }, { time: 't2', Close: 2, Volumn: null }])].join(','))
+ * // => Close
+ *
+ */
+let fieldsOf = (arr) => {
+    let n = Math.min(arr.length, 50)
+    let cnt = {}
+    for (let i = 0; i < n; i++) {
+        for (let k of Object.keys(arr[i])) {
+            if (isnum(arr[i][k])) {
+                cnt[k] = (cnt[k] || 0) + 1
+            }
+        }
+    }
+    let s = new Set()
+    for (let k of Object.keys(cnt)) {
+        if (cnt[k] === n) {
+            s.add(k)
+        }
+    }
+    return s
+}
+
+
+/**
+ * 取時間區間內之K線(含頭含尾)；p為null時回傳原陣列
+ *
+ * @function
+ * @param {Array} arr 輸入K線陣列
+ * @param {Object} p 輸入期間{timeStart,timeEnd}或null
+ * @returns {Array} 回傳過濾後之陣列
+ * @example
+ *
+ * console.log(sliceByPeriod([{ time: '2023-01-01T00:00:00' }, { time: '2023-01-02T00:00:00' }], { timeStart: '2023-01-01T12:00:00', timeEnd: '2023-01-03T00:00:00' }).length)
+ * // => 1
+ *
+ */
+let sliceByPeriod = (arr, p) => {
+    if (!p) {
+        return arr
+    }
+    return filter(arr, (v) => v.time >= p.timeStart && v.time <= p.timeEnd)
+}
+
+
+/**
+ * 正規化統計量(nm)之凍結鍵(各period共用同一組nm)
+ *
+ * @function
+ * @param {Object} def 輸入參數定義(取其id)
+ * @param {String} method 輸入method名稱
+ * @param {String} keyIn 輸入來源欄位名稱('none'代表無)
+ * @param {String} keyOut 輸入輸出欄位名稱
+ * @returns {String} 回傳鍵字串`${id}|${method}|${keyIn}|${keyOut}`
+ * @example
+ *
+ * console.log(nmKeyOf({ id: 'price_ohlc_rsi' }, 'rsi', 'none', 'RSI'))
+ * // => price_ohlc_rsi|rsi|none|RSI
+ *
+ */
+let nmKeyOf = (def, method, keyIn, keyOut) => `${def.id}|${method}|${keyIn}|${keyOut}`
+
+
+/**
+ * 決定計算nm之期間：opt.nmPeriod為'all'時用全部數據(回null)、為物件時用其{timeStart,timeEnd}，預設為cfg.train(無則全部)
+ *
+ * @function
+ * @param {Object} cfg 輸入normalizeCfg正規化後之設定物件
+ * @param {Object} opt 輸入buildParams之設定物件
+ * @returns {Object|null} 回傳{timeStart,timeEnd}或null
+ * @example
+ *
+ * let cfg = { train: { timeStart: '2022-07-01T00:00:00', timeEnd: '2025-10-06T00:00:00' } }
+ * console.log(JSON.stringify(resolveNmPeriod(cfg, {})), resolveNmPeriod(cfg, { nmPeriod: 'all' }), JSON.stringify(resolveNmPeriod({ train: null }, {})))
+ * // => {"timeStart":"2022-07-01T00:00:00","timeEnd":"2025-10-06T00:00:00"} null null
+ *
+ */
+let resolveNmPeriod = (cfg, opt) => {
+    let p = get(opt, 'nmPeriod', null)
+    if (p === 'all') {
+        return null
+    }
+    if (iseobj(p)) {
+        if (!istime(p.timeStart) || !istime(p.timeEnd) || !(p.timeStart < p.timeEnd)) {
+            throw new Error(`invalid opt.nmPeriod, 須為{timeStart,timeEnd}且timeStart早於timeEnd`)
+        }
+        return { timeStart: p.timeStart, timeEnd: p.timeEnd }
+    }
+    if (cfg.train) {
+        return { timeStart: cfg.train.timeStart, timeEnd: cfg.train.timeEnd }
+    }
+    return null
+}
+
+
+/**
+ * 由K線序列計算指標參數(因子)序列並儲存至cfg.fds.param
+ *
+ * 參數定義預設為內建目錄(抽自使用端既有管線之34個定義、136個輸出)，可由opt.defs整組替換或opt.extraDefs追加，定義格式見src/params/catalog.mjs
+ * 各定義經三道過濾: cfg.useIndex為false時剔除cointpe為'index'者；數據缺少定義fields任一欄位者剔除(供僅有OHLC之股價等數據)；opt.only/opt.exclude依id取捨
+ * z-score正規化之nm(avg,std)依opt.nmPeriod(預設訓練期)由數據自算並凍結於cfg.fds.meta/params.json，之後重算參數時沿用凍結值(數據延長不致使既有策略之門檻失真)；opt.recalibrate為true時重算
+ * index側帶optMethod之指標預設以w-data-trade dataCalibrate對price側同名keyOut校正偏移參數(新幣種之index量級與ETH不同)，結果亦凍結於meta；opt.calibrateIndex為false時直接採定義值
+ * opt.series可直接寫入外部自行計算之序列({key:[{time,param}]})，opt.calcs可擴充或覆寫method對應之計算函數
+ * 輸出檔名由w-data-trade dataConvert決定: `${cointpe}_${keyKind}_${keyIn}_${keyOut}_${method}_${period}.json`
+ *
+ * @function
+ * @param {Object} cfg 輸入normalizeCfg正規化後之設定物件
+ * @param {Object} [opt={}] 輸入設定物件，預設{}
+ * @param {Array} [opt.defs] 輸入參數定義陣列，未給時用內建目錄
+ * @param {Array} [opt.extraDefs=[]] 輸入追加之參數定義陣列
+ * @param {Array} [opt.only] 輸入只計算之定義id陣列
+ * @param {Array} [opt.exclude] 輸入排除之定義id陣列
+ * @param {Object} [opt.calcs] 輸入method對應之自訂計算函數物件，簽章(arr, keyIn, optMethod) => rrs(各期{period,len,vs})
+ * @param {Object} [opt.series] 輸入外部序列物件{key:[{time,param}]}(值亦可為async (cfg, key) => 陣列之函數)，直接寫入param資料夾
+ * @param {String|Object} [opt.nmPeriod] 輸入計算nm之期間，'all'為全部數據，物件為{timeStart,timeEnd}，預設cfg.train
+ * @param {Boolean} [opt.calibrateIndex=true] 輸入是否校正index側optMethod布林值
+ * @param {Boolean} [opt.recalibrate=false] 輸入是否捨棄meta內凍結之nm與optMethod重算布林值
+ * @param {Boolean} [opt.useShowLog=false] 輸入是否顯示log布林值
+ * @returns {Promise} 回傳Promise，resolve為{nKeys,keys,defs,dropped,calibrated,nmComputed,meta}
+ * @example
+ * need test in nodejs.
+ *
+ * let r = await buildParams(cfg, { only: ['price_ohlc_close', 'price_ohlc_rsi'] })
+ * console.log(r.nKeys, r.dropped.length)
+ */
+let buildParams = async (cfg, opt = {}) => {
+
+    let useShowLog = get(opt, 'useShowLog', false) === true
+    let log = (...args) => {
+        if (useShowLog) {
+            console.log(...args)
+        }
+    }
+
+    //fds
+    let fdOhlc = cfg.fds.ohlc
+    let fdParam = ensureFolder(cfg.fds.param)
+    let fdMeta = ensureFolder(cfg.fds.meta)
+
+    //arrP, arrI
+    let arrP = readJsonOr(path.resolve(fdOhlc, `${cfg.keyOhlc}.json`), null)
+    if (!isearr(arrP)) {
+        throw new Error(`尚無K線序列[${cfg.keyOhlc}], 請先執行buildOhlc`)
+    }
+    let arrI = null
+    if (cfg.useIndex) {
+        arrI = readJsonOr(path.resolve(fdOhlc, `${cfg.keyIndex}.json`), null)
+        if (!isearr(arrI)) {
+            throw new Error(`尚無溢價指數序列[${cfg.keyIndex}], 請先執行buildOhlc`)
+        }
+    }
+
+    //defs
+    let defsIn = isearr(get(opt, 'defs')) ? opt.defs : CATALOG
+    let extra = get(opt, 'extraDefs', [])
+    if (!Array.isArray(extra)) {
+        throw new Error(`opt.extraDefs須為陣列`)
+    }
+    let defs = map([...defsIn, ...extra], validateDef)
+
+    //filter
+    let dropped = []
+    let fieldsP = fieldsOf(arrP)
+    let fieldsI = arrI ? fieldsOf(arrI) : new Set()
+    let only = get(opt, 'only', null)
+    let exclude = get(opt, 'exclude', null)
+    defs = filter(defs, (def) => {
+        if (isearr(only) && !includes(only, def.id)) {
+            dropped.push({ id: def.id, reason: '不在opt.only' })
+            return false
+        }
+        if (isearr(exclude) && includes(exclude, def.id)) {
+            dropped.push({ id: def.id, reason: '列於opt.exclude' })
+            return false
+        }
+        if (def.cointpe === 'index' && !cfg.useIndex) {
+            dropped.push({ id: def.id, reason: 'useIndex為false' })
+            return false
+        }
+        let fields = def.cointpe === 'index' ? fieldsI : fieldsP
+        let miss = filter(def.fields, (f) => !fields.has(f))
+        if (miss.length > 0) {
+            dropped.push({ id: def.id, reason: `數據缺欄位[${miss.join(',')}]` })
+            return false
+        }
+        return true
+    })
+    if (defs.length === 0 && !iseobj(get(opt, 'series'))) {
+        throw new Error(`無可計算之參數定義(dropped: ${JSON.stringify(dropped)})`)
+    }
+
+    //kp, 每日K線根數(cfg.barsPerDay, 4hr為6)併入每次calc呼叫, 使各calc之週期表('1day'、'12hr'…)於其他週期仍為同一段時間
+    let kp = buildKp(get(opt, 'calcs', {}), { barsPerDay: cfg.barsPerDay })
+    for (let def of defs) {
+        for (let m of def.methods) {
+            if (!haskey(kp, m.method)) {
+                throw new Error(`defs[${def.id}].method[${m.method}]無對應之計算函數, 請由opt.calcs提供`)
+            }
+        }
+    }
+
+    //meta
+    let fpMeta = path.resolve(fdMeta, 'params.json')
+    let meta = readJsonOr(fpMeta, null)
+    if (!iseobj(meta) || get(opt, 'recalibrate', false) === true) {
+        meta = { nm: {}, optMethod: {}, nmPeriod: null }
+    }
+    if (!iseobj(meta.nm)) {
+        meta.nm = {}
+    }
+    if (!iseobj(meta.optMethod)) {
+        meta.optMethod = {}
+    }
+    let nmPeriodWant = resolveNmPeriod(cfg, opt)
+    let nmPeriod = meta.nmPeriod ? meta.nmPeriod : nmPeriodWant
+    if (meta.nmPeriod && nmPeriodWant && (meta.nmPeriod.timeStart !== nmPeriodWant.timeStart || meta.nmPeriod.timeEnd !== nmPeriodWant.timeEnd)) {
+        log(`沿用meta凍結之nm期間[${meta.nmPeriod.timeStart}~${meta.nmPeriod.timeEnd}](本次指定[${nmPeriodWant.timeStart}~${nmPeriodWant.timeEnd}]未採, 須opt.recalibrate才重算)`)
+    }
+    let arrPN = sliceByPeriod(arrP, nmPeriod)
+    let arrIN = arrI ? sliceByPeriod(arrI, nmPeriod) : null
+    if (arrPN.length === 0 || (arrIN && arrIN.length === 0)) {
+        throw new Error(`nm期間[${JSON.stringify(nmPeriod)}]內無K線數據`)
+    }
+
+    //Pass A: index側optMethod校正(nm依賴optMethod, 故先做)
+    let calibrated = []
+    let calibrateIndex = get(opt, 'calibrateIndex', true) !== false
+    for (let def of defs) {
+        if (def.cointpe !== 'index') {
+            continue
+        }
+        for (let m of def.methods) {
+            if (!iseobj(m.optMethod)) {
+                continue
+            }
+            let mk = `${def.id}:${m.method}`
+            if (haskey(meta.optMethod, mk)) {
+                continue
+            }
+            let defRef = find(defs, (d) => d.cointpe === 'price' && d.keyKind === def.keyKind && find(d.methods, { method: m.method }))
+            if (!defRef) {
+                defRef = find(map(CATALOG, validateDef), (d) => d.cointpe === 'price' && d.keyKind === def.keyKind && find(d.methods, { method: m.method }))
+            }
+            if (!calibrateIndex || !defRef) {
+                meta.optMethod[mk] = m.optMethod
+                continue
+            }
+            let mRef = find(defRef.methods, { method: m.method })
+            let outsRef = new Set(map(mRef.deals, 'keyOut'))
+            let pairs = []
+            for (let d of m.deals) {
+                let keyOutRef = d.keyOut.replace(/Mod$/, '')
+                if (outsRef.has(keyOutRef)) {
+                    pairs.push({ keyOutSrc: d.keyOut, keyOutRef })
+                }
+            }
+            if (pairs.length === 0) {
+                meta.optMethod[mk] = m.optMethod
+                continue
+            }
+            let keyIn = def.keysIn[0]
+            log(`校正index側optMethod: ${mk} (pairs ${map(pairs, 'keyOutSrc').join(',')})`)
+            let r = await wdt.dataCalibrate(kp[m.method], arrIN, arrPN, pairs, m.optMethod, {
+                keyIn,
+                optMethodRef: iseobj(mRef.optMethod) ? mRef.optMethod : {},
+                funLog: useShowLog ? (msg) => console.log(`  ${msg}`) : null,
+            })
+            meta.optMethod[mk] = r.optMethod
+            calibrated.push({ id: def.id, method: m.method, adopt: r.adopt, optMethod: r.optMethod, optMethodInit: m.optMethod, score0: r.score0, scoreBest: r.scoreBest, nEval: r.nEval })
+        }
+    }
+
+    //Pass B: nm(缺者由nm期間數據自算)與寫出序列
+    let nmComputed = []
+    for (let def of defs) {
+        let arrSrc = def.cointpe === 'index' ? arrI : arrP
+        let arrNm = def.cointpe === 'index' ? arrIN : arrPN
+        let methodsRaw = map(def.methods, (m) => {
+            let om = get(meta.optMethod, `${def.id}:${m.method}`, null)
+            return {
+                method: m.method,
+                optMethod: iseobj(om) ? om : (iseobj(m.optMethod) ? m.optMethod : {}),
+                deals: m.deals,
+            }
+        })
+
+        //need, 定義內有無nm尚未凍結之deal(定義自帶nm者直接採用並凍結)
+        let need = false
+        for (let m of methodsRaw) {
+            for (let d of m.deals) {
+                let nk = nmKeyOf(def, m.method, d.keyIn, d.keyOut)
+                if (haskey(meta.nm, nk)) {
+                    continue
+                }
+                if (iseobj(d.nm) && isnum(d.nm.avg) && isnum(d.nm.std)) {
+                    meta.nm[nk] = { avg: d.nm.avg, std: d.nm.std }
+                    continue
+                }
+                need = true
+            }
+        }
+        if (need) {
+            log(`計算nm: ${def.id}`)
+            let methodsProbe = map(methodsRaw, (m) => ({
+                method: m.method,
+                optMethod: m.optMethod,
+                deals: map(m.deals, (d) => ({ keyIn: d.keyIn, keyOut: d.keyOut, nm: { avg: 0, std: 1 } })),
+            }))
+            let rs = await wdt.dataConvert(cfg.name, cfg.symbol, cfg.interval, def.cointpe, def.keyKind, methodsProbe, arrNm, kp, fdParam, {
+                funAddKeysIn: def.funAddKeysIn,
+                keysIn: def.keysIn,
+                denyOutput: true,
+            })
+            for (let r of rs) {
+                let nk = nmKeyOf(def, r.method, r.keyIn, r.keyOut)
+                if (haskey(meta.nm, nk)) {
+                    continue
+                }
+                let avg = isnum(r.avg) && Number.isFinite(r.avg) ? r.avg : 0
+                let std = isnum(r.std) && Number.isFinite(r.std) && r.std > 0 ? r.std : 1
+                if (std === 1 && avg === 0 && !(r.std > 0)) {
+                    log(`  警告: ${nk} 之std非正數(${r.std}), nm改採{avg:0,std:1}`)
+                }
+                meta.nm[nk] = { avg, std }
+                nmComputed.push({ key: nk, avg, std, min: r.min, max: r.max })
+            }
+        }
+
+        //methods, 掛上凍結之nm
+        let methods = map(methodsRaw, (m) => ({
+            method: m.method,
+            optMethod: m.optMethod,
+            deals: map(m.deals, (d) => {
+                let nk = nmKeyOf(def, m.method, d.keyIn, d.keyOut)
+                let nm = get(meta.nm, nk, null)
+                if (!iseobj(nm)) {
+                    throw new Error(`nm缺失[${nk}](計算結果無此組合, 請確認定義之keyIn/keyOut與計算函數輸出一致)`)
+                }
+                return { keyIn: d.keyIn, keyOut: d.keyOut, nm }
+            }),
+        }))
+
+        //write
+        log(`寫出序列: ${def.id}`)
+        await wdt.dataConvert(cfg.name, cfg.symbol, cfg.interval, def.cointpe, def.keyKind, methods, arrSrc, kp, fdParam, {
+            funAddKeysIn: def.funAddKeysIn,
+            keysIn: def.keysIn,
+        })
+    }
+
+    //series, 外部序列直接寫入
+    let series = get(opt, 'series', null)
+    let seriesKeys = []
+    if (iseobj(series)) {
+        for (let key of Object.keys(series)) {
+            if (!isestr(key) || /[\\/]/.test(key)) {
+                throw new Error(`opt.series之key[${key}]無效`)
+            }
+            let arr = series[key]
+            if (isfun(arr)) {
+                arr = await arr(cfg, key)
+            }
+            if (!isearr(arr)) {
+                throw new Error(`opt.series.${key}須為非空陣列[{time,param}]`)
+            }
+            for (let i = 0; i < arr.length; i++) {
+                if (!istime(get(arr[i], 'time', '')) || !haskey(arr[i], 'param')) {
+                    throw new Error(`opt.series.${key}[${i}]須為{time:'YYYY-MM-DDTHH:mm:ss',param}`)
+                }
+            }
+            writeJson(path.resolve(fdParam, `${key}.json`), map(arr, (v) => ({ time: v.time, param: v.param })), { format: false })
+            seriesKeys.push(key)
+        }
+    }
+
+    //meta
+    meta.nmPeriod = nmPeriod
+    meta.name = cfg.name
+    meta.interval = cfg.interval
+    meta.useIndex = cfg.useIndex
+    meta.defs = map(defs, 'id')
+    meta.dropped = dropped
+    meta.seriesKeys = seriesKeys
+    meta.at = nowIso()
+    writeJson(fpMeta, meta)
+
+    let keys = listJsonKeys(fdParam)
+    return {
+        nKeys: keys.length,
+        keys,
+        defs: map(defs, 'id'),
+        dropped,
+        calibrated,
+        nmComputed: nmComputed.length,
+        meta,
+    }
+}
+
+
+export { buildKp, validateDef, fieldsOf, sliceByPeriod, nmKeyOf, resolveNmPeriod }
+export default buildParams

@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>sweep/sweepSingle.mjs - Documentation</title>
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#CATALOG">CATALOG</a></li><li><a href="global.html#CFG_KEYS">CFG_KEYS</a></li><li><a href="global.html#COMPS_ALL">COMPS_ALL</a></li><li><a href="global.html#DERIVED_KEYS">DERIVED_KEYS</a></li><li><a href="global.html#ENDPOINT_INDEX">ENDPOINT_INDEX</a></li><li><a href="global.html#ENDPOINT_PRICE">ENDPOINT_PRICE</a></li><li><a href="global.html#EVENT_KEYS">EVENT_KEYS</a></li><li><a href="global.html#FDS">FDS</a></li><li><a href="global.html#HEADS_INDEX">HEADS_INDEX</a></li><li><a href="global.html#HEADS_PRICE">HEADS_PRICE</a></li><li><a href="global.html#INTERVALS">INTERVALS</a></li><li><a href="global.html#SOLVE_OPT_KEYS">SOLVE_OPT_KEYS</a></li><li><a href="global.html#TPS_DEFAULT">TPS_DEFAULT</a></li><li><a href="global.html#WTradeStrategy">WTradeStrategy</a></li><li><a href="global.html#allowedComps">allowedComps</a></li><li><a href="global.html#assmDefaultOf">assmDefaultOf</a></li><li><a href="global.html#binomTailGE">binomTailGE</a></li><li><a href="global.html#buildBaseBars">buildBaseBars</a></li><li><a href="global.html#buildCache">buildCache</a></li><li><a href="global.html#buildKp">buildKp</a></li><li><a href="global.html#buildOhlc">buildOhlc</a></li><li><a href="global.html#buildP2Data">buildP2Data</a></li><li><a href="global.html#buildParams">buildParams</a></li><li><a href="global.html#calcOrdersStability">calcOrdersStability</a></li><li><a href="global.html#classifyKeys">classifyKeys</a></li><li><a href="global.html#cleanFolder">cleanFolder</a></li><li><a href="global.html#compsCloseOnly">compsCloseOnly</a></li><li><a href="global.html#countJson">countJson</a></li><li><a href="global.html#createCore">createCore</a></li><li><a href="global.html#createPipeline">createPipeline</a></li><li><a href="global.html#createSolver">createSolver</a></li><li><a href="global.html#dedupStrategies">dedupStrategies</a></li><li><a href="global.html#ensureFolder">ensureFolder</a></li><li><a href="global.html#eqYrOf">eqYrOf</a></li><li><a href="global.html#fetchBinance">fetchBinance</a></li><li><a href="global.html#fieldsOf">fieldsOf</a></li><li><a href="global.html#filterKeysCloseOnly">filterKeysCloseOnly</a></li><li><a href="global.html#fpCacheOf">fpCacheOf</a></li><li><a href="global.html#funAddKeysInVbs">funAddKeysInVbs</a></li><li><a href="global.html#intervalSec">intervalSec</a></li><li><a href="global.html#isBarComplete">isBarComplete</a></li><li><a href="global.html#isKeyCloseOnly">isKeyCloseOnly</a></li><li><a href="global.html#listJsonKeys">listJsonKeys</a></li><li><a href="global.html#makeFastEngine">makeFastEngine</a></li><li><a href="global.html#makeOtt">makeOtt</a></li><li><a href="global.html#nmKeyOf">nmKeyOf</a></li><li><a href="global.html#normalizeCfg">normalizeCfg</a></li><li><a href="global.html#normalizeExternal">normalizeExternal</a></li><li><a href="global.html#nowIso">nowIso</a></li><li><a href="global.html#parfor">parfor</a></li><li><a href="global.html#parseComps">parseComps</a></li><li><a href="global.html#prepareSolve">prepareSolve</a></li><li><a href="global.html#r">r</a></li><li><a href="global.html#readCsvFolder">readCsvFolder</a></li><li><a href="global.html#readF1Factors">readF1Factors</a></li><li><a href="global.html#readJsonOr">readJsonOr</a></li><li><a href="global.html#resolveNmPeriod">resolveNmPeriod</a></li><li><a href="global.html#runRound">runRound</a></li><li><a href="global.html#serializableCfg">serializableCfg</a></li><li><a href="global.html#sliceByPeriod">sliceByPeriod</a></li><li><a href="global.html#solve">solve</a></li><li><a href="global.html#sweepCfgOf">sweepCfgOf</a></li><li><a href="global.html#sweepPairs">sweepPairs</a></li><li><a href="global.html#sweepSingle">sweepSingle</a></li><li><a href="global.html#validateDef">validateDef</a></li><li><a href="global.html#writeJson">writeJson</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">sweep/sweepSingle.mjs</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import path from 'path'
+import get from 'lodash-es/get.js'
+import map from 'lodash-es/map.js'
+import isestr from 'wsemi/src/isestr.mjs'
+import isearr from 'wsemi/src/isearr.mjs'
+import isfun from 'wsemi/src/isfun.mjs'
+import dataProvide from 'w-data-tdprovide/src/WDataTdprovide.mjs'
+import genStrategyFileName from 'w-trade-solve/src/genStrategyFileName.mjs'
+import parfor from '../util/parfor.mjs'
+import { sweepCfgOf } from './common.mjs'
+import { ensureFolder, cleanFolder, listJsonKeys, writeJson } from '../util/fsx.mjs'
+
+
+/**
+ * 單因子策略普測(平行): 對param資料夾全部因子，每因子long/short全掃描(tpsl×th×sym)選best等效年化策略，raw逐檔輸出
+ *
+ * 抽自使用端既有管線；須先有buildParams之因子序列與buildCache之先觸快取；輸出之策略檔格式與w-trade-solve estimKeys之策略庫相容(含訓練期summary)
+ * 每因子一個工作，由parfor持久worker pool動態派工，主程序負責讀序列與寫檔
+ *
+ * @function
+ * @param {Object} cfg 輸入normalizeCfg正規化後之設定物件(須含train)
+ * @param {Object} [opt={}] 輸入設定物件，預設{}，另接受sweepCfgOf之tpsls/thsLong/thsShort/assm/fpCache
+ * @param {String} [opt.fdTar] 輸入輸出資料夾，預設cfg.fds.strategiesP1
+ * @param {Number} [opt.numTradeFinMin=50] 輸入納入比較之已平倉筆數門檻(須大於此值)
+ * @param {Integer} [opt.limit=0] 輸入只取前limit個因子(快速測試用)，0為全量
+ * @param {Integer} [opt.takeLimit] 輸入同時worker數，預設os.availableParallelism()-1
+ * @param {Boolean} [opt.useAssm=false] 輸入是否啟用訓練期穩定度gate
+ * @param {Boolean} [opt.usePlateau=false] 輸入是否啟用th鄰域平台檢查
+ * @param {Boolean} [opt.cleanFdOut=true] 輸入開跑前是否清空輸出資料夾
+ * @param {Function} [opt.filterKeys] 輸入因子key過濾函數(keys) => keys，可為async
+ * @param {Function} [opt.onProgress] 輸入進度回呼({i,n,nOut,elapsedMs})
+ * @returns {Promise} 回傳Promise，resolve為{nFactors,nOut,fdTar,elapsedMs}
+ * @example
+ * need test in nodejs.
+ *
+ * let r = await sweepSingle(cfg, { takeLimit: 4 })
+ * console.log(r.nFactors, r.nOut)
+ */
+let sweepSingle = async (cfg, opt = {}) => {
+
+    let sc = sweepCfgOf(cfg, opt)
+
+    let fdTar = get(opt, 'fdTar', '')
+    fdTar = isestr(fdTar) ? path.resolve(fdTar) : cfg.fds.strategiesP1
+    let numTradeFinMin = get(opt, 'numTradeFinMin', 50)
+    let limit = get(opt, 'limit', 0)
+    let takeLimit = get(opt, 'takeLimit', undefined)
+    let useAssm = get(opt, 'useAssm', false) === true
+    let usePlateau = get(opt, 'usePlateau', false) === true
+    let cleanFdOut = get(opt, 'cleanFdOut', true) !== false
+    let onProgress = get(opt, 'onProgress', null)
+
+    //keys
+    let keys = listJsonKeys(cfg.fds.param)
+    if (isfun(opt.filterKeys)) {
+        keys = await opt.filterKeys(keys)
+    }
+    if (!isearr(keys)) {
+        throw new Error(`param資料夾[${cfg.fds.param}]無因子序列`)
+    }
+    if (limit > 0) {
+        keys = keys.slice(0, limit)
+    }
+
+    //jobs
+    let provideData = dataProvide(cfg.fds.ohlc, cfg.fds.param)
+    let jobs = []
+    for (let factor of keys) {
+        let arr = await provideData.getTimeSeriesByTimeRange(factor, sc.tr.ts, sc.tr.te)
+        jobs.push({ factor, arr, numTradeFinMin, useAssm, usePlateau })
+    }
+
+    //fdTar
+    if (cleanFdOut) {
+        cleanFolder(fdTar)
+    }
+    else {
+        ensureFolder(fdTar)
+    }
+
+    //run
+    let t0 = Date.now()
+    let nOut = 0
+    let i = 0
+    let n = jobs.length
+    let nr = Math.max(Math.floor(n / 200), 1)
+    await parfor(new URL('./sweepSingle_worker.mjs', import.meta.url), jobs, {
+        takeLimit,
+        initData: sc,
+        cb: (r, k) => {
+            i++
+            if (r &amp;&amp; isearr(r.strategies)) {
+                for (let s of r.strategies) {
+                    let fn = genStrategyFileName(s.name, s.interval, s.mode, map(s.conds, 'key'), s.settings, s.summary)
+                    writeJson(path.resolve(fdTar, fn), s)
+                    nOut++
+                }
+            }
+            if (isfun(onProgress) &amp;&amp; (i % nr === 0 || i === n)) {
+                onProgress({ i, n, nOut, elapsedMs: Date.now() - t0 })
+            }
+        },
+    })
+
+    return { nFactors: n, nOut, fdTar, elapsedMs: Date.now() - t0 }
+}
+
+
+export default sweepSingle
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Sun Nov 08 2026 18:01:45 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+
+
+</body>
+</html>

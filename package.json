@@ -1,0 +1,36 @@
+{
+  "name": "w-trade-strategy",
+  "version": "1.0.1",
+  "main": "dist/w-trade-strategy.umd.js",
+  "dependencies": {
+    "w-data-csv": "^1.0.48",
+    "w-data-tdprovide": "^1.0.32",
+    "w-data-trade": "^1.0.34",
+    "w-dwdata-binance": "^1.0.44",
+    "w-trade-backtest": "^1.1.27",
+    "w-trade-solve": "^2.0.26",
+    "wsemi": "^1.9.52"
+  },
+  "devDependencies": {
+    "w-package-tools": "^1.1.23"
+  },
+  "scripts": {
+    "test": "mocha --no-parallel \"test/*.test.mjs\" --timeout 180000",
+    "deploy": "gh-pages -d docs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yuda-lyu/w-trade-strategy.git"
+  },
+  "keywords": [
+    "package",
+    "tool",
+    "trade",
+    "strategy",
+    "optimization",
+    "quant",
+    "nodejs"
+  ],
+  "author": "yuda-lyu(semisphere)",
+  "license": "MIT"
+}

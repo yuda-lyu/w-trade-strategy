@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>params/catalog.mjs - Documentation</title>
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#CATALOG">CATALOG</a></li><li><a href="global.html#CFG_KEYS">CFG_KEYS</a></li><li><a href="global.html#COMPS_ALL">COMPS_ALL</a></li><li><a href="global.html#DERIVED_KEYS">DERIVED_KEYS</a></li><li><a href="global.html#ENDPOINT_INDEX">ENDPOINT_INDEX</a></li><li><a href="global.html#ENDPOINT_PRICE">ENDPOINT_PRICE</a></li><li><a href="global.html#EVENT_KEYS">EVENT_KEYS</a></li><li><a href="global.html#FDS">FDS</a></li><li><a href="global.html#HEADS_INDEX">HEADS_INDEX</a></li><li><a href="global.html#HEADS_PRICE">HEADS_PRICE</a></li><li><a href="global.html#INTERVALS">INTERVALS</a></li><li><a href="global.html#SOLVE_OPT_KEYS">SOLVE_OPT_KEYS</a></li><li><a href="global.html#TPS_DEFAULT">TPS_DEFAULT</a></li><li><a href="global.html#WTradeStrategy">WTradeStrategy</a></li><li><a href="global.html#allowedComps">allowedComps</a></li><li><a href="global.html#assmDefaultOf">assmDefaultOf</a></li><li><a href="global.html#binomTailGE">binomTailGE</a></li><li><a href="global.html#buildBaseBars">buildBaseBars</a></li><li><a href="global.html#buildCache">buildCache</a></li><li><a href="global.html#buildKp">buildKp</a></li><li><a href="global.html#buildOhlc">buildOhlc</a></li><li><a href="global.html#buildP2Data">buildP2Data</a></li><li><a href="global.html#buildParams">buildParams</a></li><li><a href="global.html#calcOrdersStability">calcOrdersStability</a></li><li><a href="global.html#classifyKeys">classifyKeys</a></li><li><a href="global.html#cleanFolder">cleanFolder</a></li><li><a href="global.html#compsCloseOnly">compsCloseOnly</a></li><li><a href="global.html#countJson">countJson</a></li><li><a href="global.html#createCore">createCore</a></li><li><a href="global.html#createPipeline">createPipeline</a></li><li><a href="global.html#createSolver">createSolver</a></li><li><a href="global.html#dedupStrategies">dedupStrategies</a></li><li><a href="global.html#ensureFolder">ensureFolder</a></li><li><a href="global.html#eqYrOf">eqYrOf</a></li><li><a href="global.html#fetchBinance">fetchBinance</a></li><li><a href="global.html#fieldsOf">fieldsOf</a></li><li><a href="global.html#filterKeysCloseOnly">filterKeysCloseOnly</a></li><li><a href="global.html#fpCacheOf">fpCacheOf</a></li><li><a href="global.html#funAddKeysInVbs">funAddKeysInVbs</a></li><li><a href="global.html#intervalSec">intervalSec</a></li><li><a href="global.html#isBarComplete">isBarComplete</a></li><li><a href="global.html#isKeyCloseOnly">isKeyCloseOnly</a></li><li><a href="global.html#listJsonKeys">listJsonKeys</a></li><li><a href="global.html#makeFastEngine">makeFastEngine</a></li><li><a href="global.html#makeOtt">makeOtt</a></li><li><a href="global.html#nmKeyOf">nmKeyOf</a></li><li><a href="global.html#normalizeCfg">normalizeCfg</a></li><li><a href="global.html#normalizeExternal">normalizeExternal</a></li><li><a href="global.html#nowIso">nowIso</a></li><li><a href="global.html#parfor">parfor</a></li><li><a href="global.html#parseComps">parseComps</a></li><li><a href="global.html#prepareSolve">prepareSolve</a></li><li><a href="global.html#r">r</a></li><li><a href="global.html#readCsvFolder">readCsvFolder</a></li><li><a href="global.html#readF1Factors">readF1Factors</a></li><li><a href="global.html#readJsonOr">readJsonOr</a></li><li><a href="global.html#resolveNmPeriod">resolveNmPeriod</a></li><li><a href="global.html#runRound">runRound</a></li><li><a href="global.html#serializableCfg">serializableCfg</a></li><li><a href="global.html#sliceByPeriod">sliceByPeriod</a></li><li><a href="global.html#solve">solve</a></li><li><a href="global.html#sweepCfgOf">sweepCfgOf</a></li><li><a href="global.html#sweepPairs">sweepPairs</a></li><li><a href="global.html#sweepSingle">sweepSingle</a></li><li><a href="global.html#validateDef">validateDef</a></li><li><a href="global.html#writeJson">writeJson</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">params/catalog.mjs</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>//內建參數(因子)目錄: 由使用端既有管線之 34 個參數定義抽提, 去除幣種專屬之 nm(avg/std, 改由 buildParams 依指定期間自算並凍結於 meta)
+//  各定義: { id, cointpe('price'|'index'), keyKind('ohlc'|'vbs'), fields(計算實際存取之 K 線欄位; 數據缺任一欄即整個定義跳過), keysIn(取值類之來源欄位; 空陣列代表 'none'),
+//           funAddKeysIn(逐筆擴增欄位之函數, 僅 vbs 用), methods: [{ method, optMethod(index 側之偏移參數, 為校正起點; null=無), deals: [{ keyIn?, keyOut }] }] }
+//  key 命名由 w-data-trade dataConvert 決定: `${cointpe}_${keyKind}_${keyIn||'none'}_${keyOut}_${method}_${period}`
+//  index 側之 optMethod 預設值為 ETH 之率定值; buildParams 預設會以 w-data-trade dataCalibrate 對新幣種重新校正(以 price 側同名 keyOut 為參考), 結果凍結於 meta
+//  各 calc 之週期表(1day=6 根 …)在 w-data-trade 內以 4hr K 線為基準; buildParams 於每次呼叫併入 barsPerDay(= 86400 / intervalSec)換算, 其他 interval 之週期標籤維持時間語意(見 README §4 K 線週期)
+import diviProt from 'w-data-trade/src/diviProt.mjs'
+
+
+/**
+ * 由成交量欄位擴增volumn/volumnBuy/volumnSell/volumnDiff/vbr/vsr/vdr七欄(供price_vbs定義之取值類method使用)
+ *
+ * @function
+ * @param {Object} v 輸入K線物件(須含Volumn與TakerBuyBaseAssetVolume)
+ * @returns {Object} 回傳同一物件(已擴增欄位)
+ * @example
+ *
+ * let v = funAddKeysInVbs({ Volumn: 1000, TakerBuyBaseAssetVolume: 600 })
+ * console.log(v.volumnSell, v.volumnDiff, v.vbr, v.vsr, v.vdr)
+ * // => 400 200 0.6 0.4 0.2
+ *
+ */
+let funAddKeysInVbs = (v) => {
+    let volumn = v.Volumn
+    let volumnBuy = v.TakerBuyBaseAssetVolume
+    let volumnSell = volumn - volumnBuy
+    let volumnDiff = volumnBuy - volumnSell
+    v.volumn = volumn
+    v.volumnBuy = volumnBuy
+    v.volumnSell = volumnSell
+    v.volumnDiff = volumnDiff
+    v.vbr = diviProt(volumnBuy, volumn) //volumnBuy/volumn
+    v.vsr = diviProt(volumnSell, volumn) //volumnSell/volumn
+    v.vdr = diviProt(volumnDiff, volumn) //volumnDiff/volumn
+    return v
+}
+
+
+/**
+ * 內建參數(因子)定義目錄(34個定義、136個輸出；price 20、index 14)，各定義格式見檔頭
+ *
+ * @type {Array}
+ */
+let CATALOG = [
+    {
+        id: 'index_ohlc_adx',
+        cointpe: 'index',
+        keyKind: 'ohlc',
+        fields: ['High', 'Low', 'Close'],
+        keysIn: [],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'adx',
+                optMethod: null,
+                deals: [
+                    { keyOut: 'ADX' },
+                    { keyOut: 'plusDI' },
+                    { keyOut: 'minusDI' },
+                    { keyOut: 'DIcross' },
+                    { keyOut: 'ADXslope' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'index_ohlc_atr',
+        cointpe: 'index',
+        keyKind: 'ohlc',
+        fields: ['High', 'Low', 'Close'],
+        keysIn: [],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'atr',
+                optMethod: { plusClose: 0.03 },
+                deals: [
+                    { keyOut: 'atr' },
+                    { keyOut: 'atrRatioMod' },
+                    { keyOut: 'atrChange' },
+                    { keyOut: 'trRank' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'index_ohlc_bbpb',
+        cointpe: 'index',
+        keyKind: 'ohlc',
+        fields: ['Close'],
+        keysIn: [],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'bbpb',
+                optMethod: { subMid: -0.0002778, powMid: 0.5, plusMid: 0.1, plusBandWidth: -0.2 },
+                deals: [{ keyOut: 'BBpctB' }, { keyOut: 'BBwidthMod' }, { keyOut: 'BBwidthChangeMod' }],
+            },
+        ],
+    },
+    {
+        id: 'index_ohlc_candle',
+        cointpe: 'index',
+        keyKind: 'ohlc',
+        fields: ['Open', 'High', 'Low', 'Close'],
+        keysIn: [],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'candle',
+                optMethod: null,
+                deals: [
+                    { keyOut: 'bodyRatio' },
+                    { keyOut: 'upperWickRatio' },
+                    { keyOut: 'lowerWickRatio' },
+                    { keyOut: 'candleDir' },
+                    { keyOut: 'engulfStrength' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'index_ohlc_close',
+        cointpe: 'index',
+        keyKind: 'ohlc',
+        fields: ['Close'],
+        keysIn: ['Close'],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'orig',
+                optMethod: null,
+                deals: [{ keyOut: 'param' }],
+            },
+            {
+                method: 'ma',
+                optMethod: null,
+                deals: [{ keyOut: 'param' }],
+            },
+            {
+                method: 'ema',
+                optMethod: null,
+                deals: [{ keyOut: 'param' }],
+            },
+            {
+                method: 'vec',
+                optMethod: null,
+                deals: [{ keyOut: 'param' }],
+            },
+        ],
+    },
+    {
+        id: 'index_ohlc_donchian',
+        cointpe: 'index',
+        keyKind: 'ohlc',
+        fields: ['High', 'Low', 'Close'],
+        keysIn: [],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'donchian',
+                optMethod: { subMid: -0.0003428, powMid: 0.5, plusMid: 1 / 3, plusBandWidth: -0.2 },
+                deals: [{ keyOut: 'dcPctB' }, { keyOut: 'dcWidthMod' }, { keyOut: 'dcWidthChangeMod' }],
+            },
+        ],
+    },
+    {
+        id: 'index_ohlc_ichimoku',
+        cointpe: 'index',
+        keyKind: 'ohlc',
+        fields: ['High', 'Low', 'Close'],
+        keysIn: [],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'ichimoku',
+                optMethod: { plusClose: 0.008, plusCloudMid: 0.07, plusBandWidth: 0, plusTenkans: 0.05 },
+                deals: [{ keyOut: 'cloudDistMod' }, { keyOut: 'cloudThickMod' }, { keyOut: 'tkDiffMod' }],
+            },
+        ],
+    },
+    {
+        id: 'index_ohlc_kdj',
+        cointpe: 'index',
+        keyKind: 'ohlc',
+        fields: ['High', 'Low', 'Close'],
+        keysIn: [],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'kdj',
+                optMethod: null,
+                deals: [
+                    { keyOut: 'K' },
+                    { keyOut: 'D' },
+                    { keyOut: 'J' },
+                    { keyOut: 'KminusD' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'index_ohlc_keltner',
+        cointpe: 'index',
+        keyKind: 'ohlc',
+        fields: ['High', 'Low', 'Close'],
+        keysIn: [],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'keltner',
+                optMethod: { plusMiddle: 0.03 },
+                deals: [{ keyOut: 'kcPctB' }, { keyOut: 'kcWidthMod' }],
+            },
+        ],
+    },
+    {
+        id: 'index_ohlc_klr',
+        cointpe: 'index',
+        keyKind: 'ohlc',
+        fields: ['Open', 'High', 'Low', 'Close'],
+        keysIn: [],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'klr',
+                optMethod: { plusClose: 0.5 },
+                deals: [
+                    { keyOut: 'ho' },
+                    { keyOut: 'lo' },
+                    { keyOut: 'co' },
+                    { keyOut: 'hc' },
+                    { keyOut: 'lc' },
+                    { keyOut: 'hl' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'index_ohlc_macd',
+        cointpe: 'index',
+        keyKind: 'ohlc',
+        fields: ['Close'],
+        keysIn: [],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'macd',
+                optMethod: null,
+                deals: [{ keyOut: 'DIF' }, { keyOut: 'DEM' }, { keyOut: 'OSC' }],
+            },
+        ],
+    },
+    {
+        id: 'index_ohlc_rsi',
+        cointpe: 'index',
+        keyKind: 'ohlc',
+        fields: ['Close'],
+        keysIn: [],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'rsi',
+                optMethod: null,
+                deals: [
+                    { keyOut: 'RSI' },
+                    { keyOut: 'rsiAvgGain' },
+                    { keyOut: 'rsiAvgLoss' },
+                    { keyOut: 'rsiUp' },
+                    { keyOut: 'rsiDown' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'index_ohlc_supertrend',
+        cointpe: 'index',
+        keyKind: 'ohlc',
+        fields: ['High', 'Low', 'Close'],
+        keysIn: [],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'supertrend',
+                optMethod: { plusClose: 0.005 },
+                deals: [{ keyOut: 'stDistanceMod' }],
+            },
+        ],
+    },
+    {
+        id: 'index_ohlc_vortex',
+        cointpe: 'index',
+        keyKind: 'ohlc',
+        fields: ['High', 'Low', 'Close'],
+        keysIn: [],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'vortex',
+                optMethod: null,
+                deals: [
+                    { keyOut: 'VIplus' },
+                    { keyOut: 'VIminus' },
+                    { keyOut: 'VIdiff' },
+                    { keyOut: 'VIsum' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'price_ohlc_adx',
+        cointpe: 'price',
+        keyKind: 'ohlc',
+        fields: ['High', 'Low', 'Close'],
+        keysIn: [],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'adx',
+                optMethod: null,
+                deals: [
+                    { keyOut: 'ADX' },
+                    { keyOut: 'plusDI' },
+                    { keyOut: 'minusDI' },
+                    { keyOut: 'DIcross' },
+                    { keyOut: 'ADXslope' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'price_ohlc_atr',
+        cointpe: 'price',
+        keyKind: 'ohlc',
+        fields: ['High', 'Low', 'Close'],
+        keysIn: [],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'atr',
+                optMethod: null,
+                deals: [
+                    { keyOut: 'atr' },
+                    { keyOut: 'atrRatio' },
+                    { keyOut: 'atrChange' },
+                    { keyOut: 'trRank' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'price_ohlc_ats',
+        cointpe: 'price',
+        keyKind: 'ohlc',
+        fields: ['QuoteAssetVolume', 'NumberOfTrades'],
+        keysIn: [],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'ats',
+                optMethod: null,
+                deals: [{ keyOut: 'atsRatio' }, { keyOut: 'atsChange' }],
+            },
+        ],
+    },
+    {
+        id: 'price_ohlc_bbpb',
+        cointpe: 'price',
+        keyKind: 'ohlc',
+        fields: ['Close'],
+        keysIn: [],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'bbpb',
+                optMethod: null,
+                deals: [{ keyOut: 'BBpctB' }, { keyOut: 'BBwidth' }, { keyOut: 'BBwidthChange' }],
+            },
+        ],
+    },
+    {
+        id: 'price_ohlc_candle',
+        cointpe: 'price',
+        keyKind: 'ohlc',
+        fields: ['Open', 'High', 'Low', 'Close'],
+        keysIn: [],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'candle',
+                optMethod: null,
+                deals: [
+                    { keyOut: 'bodyRatio' },
+                    { keyOut: 'upperWickRatio' },
+                    { keyOut: 'lowerWickRatio' },
+                    { keyOut: 'candleDir' },
+                    { keyOut: 'engulfStrength' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'price_ohlc_close',
+        cointpe: 'price',
+        keyKind: 'ohlc',
+        fields: ['Close'],
+        keysIn: ['Close'],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'maNorm',
+                optMethod: null,
+                deals: [{ keyOut: 'param' }],
+            },
+            {
+                method: 'emaNorm',
+                optMethod: null,
+                deals: [{ keyOut: 'param' }],
+            },
+            {
+                method: 'vecNorm',
+                optMethod: null,
+                deals: [{ keyOut: 'param' }],
+            },
+        ],
+    },
+    {
+        id: 'price_ohlc_cvd',
+        cointpe: 'price',
+        keyKind: 'ohlc',
+        fields: ['Volumn', 'TakerBuyBaseAssetVolume'],
+        keysIn: [],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'cvd',
+                optMethod: null,
+                deals: [{ keyOut: 'cvd' }, { keyOut: 'cvdSlope' }],
+            },
+        ],
+    },
+    {
+        id: 'price_ohlc_donchian',
+        cointpe: 'price',
+        keyKind: 'ohlc',
+        fields: ['High', 'Low', 'Close'],
+        keysIn: [],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'donchian',
+                optMethod: null,
+                deals: [{ keyOut: 'dcPctB' }, { keyOut: 'dcWidth' }, { keyOut: 'dcWidthChange' }],
+            },
+        ],
+    },
+    {
+        id: 'price_ohlc_ichimoku',
+        cointpe: 'price',
+        keyKind: 'ohlc',
+        fields: ['High', 'Low', 'Close'],
+        keysIn: [],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'ichimoku',
+                optMethod: null,
+                deals: [{ keyOut: 'cloudDist' }, { keyOut: 'cloudThick' }, { keyOut: 'tkDiff' }],
+            },
+        ],
+    },
+    {
+        id: 'price_ohlc_kdj',
+        cointpe: 'price',
+        keyKind: 'ohlc',
+        fields: ['High', 'Low', 'Close'],
+        keysIn: [],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'kdj',
+                optMethod: null,
+                deals: [
+                    { keyOut: 'K' },
+                    { keyOut: 'D' },
+                    { keyOut: 'J' },
+                    { keyOut: 'KminusD' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'price_ohlc_keltner',
+        cointpe: 'price',
+        keyKind: 'ohlc',
+        fields: ['High', 'Low', 'Close'],
+        keysIn: [],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'keltner',
+                optMethod: null,
+                deals: [{ keyOut: 'kcPctB' }, { keyOut: 'kcWidth' }],
+            },
+        ],
+    },
+    {
+        id: 'price_ohlc_klr',
+        cointpe: 'price',
+        keyKind: 'ohlc',
+        fields: ['Open', 'High', 'Low', 'Close'],
+        keysIn: [],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'klr',
+                optMethod: null,
+                deals: [
+                    { keyOut: 'ho' },
+                    { keyOut: 'lo' },
+                    { keyOut: 'co' },
+                    { keyOut: 'hc' },
+                    { keyOut: 'lc' },
+                    { keyOut: 'hl' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'price_ohlc_macd',
+        cointpe: 'price',
+        keyKind: 'ohlc',
+        fields: ['Close'],
+        keysIn: [],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'macd',
+                optMethod: null,
+                deals: [{ keyOut: 'DIF' }, { keyOut: 'DEM' }, { keyOut: 'OSC' }],
+            },
+        ],
+    },
+    {
+        id: 'price_ohlc_mfi',
+        cointpe: 'price',
+        keyKind: 'ohlc',
+        fields: ['High', 'Low', 'Close', 'Volumn'],
+        keysIn: [],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'mfi',
+                optMethod: null,
+                deals: [{ keyOut: 'MFI' }, { keyOut: 'MFIratio' }, { keyOut: 'MFIdiv' }],
+            },
+        ],
+    },
+    {
+        id: 'price_ohlc_obv',
+        cointpe: 'price',
+        keyKind: 'ohlc',
+        fields: ['Close', 'Volumn'],
+        keysIn: [],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'obv',
+                optMethod: null,
+                deals: [{ keyOut: 'OBVnorm' }, { keyOut: 'OBVslope' }, { keyOut: 'OBVdiv' }],
+            },
+        ],
+    },
+    {
+        id: 'price_ohlc_rsi',
+        cointpe: 'price',
+        keyKind: 'ohlc',
+        fields: ['Close'],
+        keysIn: [],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'rsi',
+                optMethod: null,
+                deals: [
+                    { keyOut: 'RSI' },
+                    { keyOut: 'rsiAvgGain' },
+                    { keyOut: 'rsiAvgLoss' },
+                    { keyOut: 'rsiUp' },
+                    { keyOut: 'rsiDown' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'price_ohlc_supertrend',
+        cointpe: 'price',
+        keyKind: 'ohlc',
+        fields: ['High', 'Low', 'Close'],
+        keysIn: [],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'supertrend',
+                optMethod: null,
+                deals: [{ keyOut: 'stDistance' }],
+            },
+        ],
+    },
+    {
+        id: 'price_ohlc_vortex',
+        cointpe: 'price',
+        keyKind: 'ohlc',
+        fields: ['High', 'Low', 'Close'],
+        keysIn: [],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'vortex',
+                optMethod: null,
+                deals: [
+                    { keyOut: 'VIplus' },
+                    { keyOut: 'VIminus' },
+                    { keyOut: 'VIdiff' },
+                    { keyOut: 'VIsum' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'price_ohlc_vwap',
+        cointpe: 'price',
+        keyKind: 'ohlc',
+        fields: ['High', 'Low', 'Close', 'Volumn'],
+        keysIn: [],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'vwap',
+                optMethod: null,
+                deals: [{ keyOut: 'vwapDist' }, { keyOut: 'vwapDistATR' }],
+            },
+        ],
+    },
+    {
+        id: 'price_vbs',
+        cointpe: 'price',
+        keyKind: 'vbs',
+        fields: ['Volumn', 'TakerBuyBaseAssetVolume'],
+        keysIn: ['volumn', 'volumnBuy', 'volumnSell', 'volumnDiff', 'vbr', 'vsr', 'vdr'],
+        funAddKeysIn: funAddKeysInVbs,
+        methods: [
+            {
+                method: 'maNorm',
+                optMethod: null,
+                deals: [
+                    { keyIn: 'volumn', keyOut: 'param' },
+                    { keyIn: 'volumnBuy', keyOut: 'param' },
+                    { keyIn: 'volumnSell', keyOut: 'param' },
+                    { keyIn: 'volumnDiff', keyOut: 'param' },
+                    { keyIn: 'vbr', keyOut: 'param' },
+                    { keyIn: 'vsr', keyOut: 'param' },
+                    { keyIn: 'vdr', keyOut: 'param' },
+                ],
+            },
+            {
+                method: 'emaNorm',
+                optMethod: null,
+                deals: [
+                    { keyIn: 'volumn', keyOut: 'param' },
+                    { keyIn: 'volumnBuy', keyOut: 'param' },
+                    { keyIn: 'volumnSell', keyOut: 'param' },
+                    { keyIn: 'volumnDiff', keyOut: 'param' },
+                    { keyIn: 'vbr', keyOut: 'param' },
+                    { keyIn: 'vsr', keyOut: 'param' },
+                    { keyIn: 'vdr', keyOut: 'param' },
+                ],
+            },
+            {
+                method: 'vecNorm',
+                optMethod: null,
+                deals: [
+                    { keyIn: 'volumn', keyOut: 'param' },
+                    { keyIn: 'volumnBuy', keyOut: 'param' },
+                    { keyIn: 'volumnSell', keyOut: 'param' },
+                    { keyIn: 'volumnDiff', keyOut: 'param' },
+                    { keyIn: 'vbr', keyOut: 'param' },
+                    { keyIn: 'vsr', keyOut: 'param' },
+                    { keyIn: 'vdr', keyOut: 'param' },
+                ],
+            },
+        ],
+    },
+]
+
+
+export { funAddKeysInVbs }
+export default CATALOG
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Sun Nov 08 2026 18:01:45 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+
+
+</body>
+</html>
