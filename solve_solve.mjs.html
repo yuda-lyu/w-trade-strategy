@@ -61,7 +61,7 @@ import { ensureFolder, countJson } from '../util/fsx.mjs'
  *
  * @type {Array}
  */
-let EVENT_KEYS = Object.freeze(['onReady', 'onRound', 'onCandidate', 'onProgress', 'onError', 'shouldStop'])
+let EVENT_KEYS = Object.freeze(['onReady', 'onRound', 'onCandidate', 'onProgress', 'onError', 'shouldStop', 'gate'])
 
 
 /**
@@ -84,7 +84,8 @@ let SOLVE_OPT_KEYS = Object.freeze([
  * 每輪為一次w-trade-solve estimFinder(隨機方向與指標組成，於訓練期率定門檻與止盈止損)，達門檻之策略由estimKeys寫入策略庫(同tkid僅於更佳時覆寫)
  * 預設engine為'fast'(加速評估核心，存檔前官方重跑)，'full'為全程官方runStrategy
  * opt.workers為0時於本程序內循序執行(opt可含函數)，>0時以worker_threads平行執行(opt除事件欄位外不可含函數，改用closeOnly等旗標)
- * 停止條件: maxStrategies(策略庫檔數達此即停)、maxRounds(總輪數)、maxTimeMs、shouldStop(status) => bool、或呼叫stop()；workers>0時各worker每輪結束皆等主程序放行才起下一輪，故停止條件成立時進行中之他worker至多再完成當輪(總輪數至多超出workers-1)
+ * 停止條件: maxStrategies(策略庫檔數達此即停)、maxRounds(總輪數)、maxTimeMs、shouldStop(status) => bool、或呼叫stop()；起跑前即成立者不起任何輪次(workers>0亦同，不起worker)；workers>0時各worker每輪結束皆等主程序放行才起下一輪，故停止條件成立時進行中之他worker至多再完成當輪(總輪數至多超出workers-1)
+ * 資源閘: opt.gate為async ({workerId,...status}) => {}，每輪起跑前(含workers>0各worker之第1輪)由主程序await之後才放行，可於其中量CPU/RAM，超限時延後resolve以節流；閘resolve後再查一次停止條件，成立即不放行(workers>0時所有worker，含仍在別的閘內等待者，皆收到stop並結束)；閘拋錯(含rejection)記入errors並觸發onError，照常放行；已要求停止後不再呼叫閘；stop()隨時生效(不等閘)，shouldStop、maxTimeMs、maxStrategies於輪次結束與每個閘resolve後判定，閘不resolve者不會被判定；停止後閘之promise不被取消(閘內宜自行檢查停止)
  *
  * @function
  * @param {Object} cfg 輸入normalizeCfg正規化後之設定物件(須含train)
@@ -110,7 +111,8 @@ let SOLVE_OPT_KEYS = Object.freeze([
  * @param {Integer} [opt.maxStrategies] 輸入策略庫檔數達此即停
  * @param {Integer} [opt.maxRounds] 輸入總輪數上限
  * @param {Integer} [opt.maxTimeMs] 輸入總時長上限(毫秒)
- * @param {Function} [opt.shouldStop] 輸入自訂停止判斷(status) => Boolean，每輪結束檢查
+ * @param {Function} [opt.shouldStop] 輸入自訂停止判斷(status) => Boolean，每輪結束檢查(起跑前與每個閘resolve後亦檢查)
+ * @param {Function} [opt.gate] 輸入每輪放行前之資源閘async ({workerId,...status}) => {}，resolve後才起該輪(含workers>0各worker之第1輪)；用於CPU/RAM超限時延後放行；閘等待中停止條件成立則不起跑；閘拋錯記入errors並照常放行；workers>0時可為函數(於主程序執行，不傳入worker)
  * @param {Function} [opt.onReady] 輸入準備完成回呼({workerId,counts,comps,engine})
  * @param {Function} [opt.onRound] 輸入每輪結束回呼({workerId,mode,comps,timeStart,timeEnd,candidates,...status})，其中elapsedMs為求解器累計耗時(status覆寫該輪耗時)
  * @param {Function} [opt.onCandidate] 輸入每個達門檻候選回呼({workerId,mode,comps,keys,conds,settings,summary})
@@ -197,6 +199,24 @@ let createSolver = (cfg, opt = {}) => {
         return null
     }
 
+    //waitGate, 每輪放行前之資源閘(opt.gate): 主程序await其resolve後才放行; 閘拋錯記入errors並觸發onError, 照常放行(不使求解卡死, onError本身拋錯亦忽略)
+    let waitGate = async (workerId) => {
+        let gate = opt.gate
+        if (!isfun(gate)) {
+            return
+        }
+        try {
+            await gate({ workerId, ...status() })
+        }
+        catch (err) {
+            st.errors.push(String((err &amp;&amp; err.stack) || err))
+            try {
+                emit('onError', err)
+            }
+            catch (err2) {}
+        }
+    }
+
     let onRoundDone = (r) => {
         st.nRounds++
         st.nCandidates += get(r, 'candidates', 0)
@@ -210,6 +230,11 @@ let createSolver = (cfg, opt = {}) => {
         emit('onReady', { workerId: 0, counts: prep.counts, comps: prep.comps, engine: prep.engine })
         stopReason = checkStop()
         while (!stopReason) {
+            await waitGate(0) //每輪起跑前經資源閘
+            stopReason = checkStop() //閘等待期間停止條件成立(含stop())即不起跑
+            if (stopReason) {
+                break
+            }
             let r = await runRound(cfg, opt, prep, {
                 onCandidate: (ev) => emit('onCandidate', { workerId: 0, ...ev }),
             })
@@ -232,6 +257,12 @@ let createSolver = (cfg, opt = {}) => {
         }
         optSer.fdStrategies = fdStrategies
         let cfgSer = serializableCfg(cfg)
+        stopReason = checkStop()
+        if (stopReason) {
+            return //起跑前即達停止條件(如策略庫已達maxStrategies、或已stop()), 不起worker(同workers為0)
+        }
+        let capPerWorker = Number.isInteger(opt.maxRoundsPerWorker) &amp;&amp; opt.maxRoundsPerWorker > 0 ? opt.maxRoundsPerWorker : 0
+        let roundsOf = {}
         await new Promise((resolve, reject) => {
             let alive = workers
             let settled = false
@@ -264,6 +295,26 @@ let createSolver = (cfg, opt = {}) => {
                     }
                 }
             }
+            //proceed, 放行該worker(worker於ready與每輪round後皆等此回覆)
+            let proceed = (wk) => {
+                try {
+                    wk.postMessage({ type: 'continue' })
+                }
+                catch (err) {}
+            }
+            //release, 經資源閘後放行該worker之下一輪: 閘resolve後再查停止條件, 成立則不放行並要求全體停止(requestStop對所有worker送stop, 含仍在別的閘內等待者, 故不致懸置)
+            //  已要求停止者各worker皆已收stop, 不再過閘
+            let release = (wk, workerId) => {
+                if (stopReason) {
+                    return
+                }
+                waitGate(workerId).then(() => {
+                    maybeStop()
+                    if (!stopReason) {
+                        proceed(wk)
+                    }
+                })
+            }
             for (let i = 0; i &lt; workers; i++) {
                 let wk = new Worker(new URL('./solveWorker.mjs', import.meta.url), { workerData: { cfg: cfgSer, opt: optSer, workerId: i } })
                 wks.push(wk)
@@ -273,6 +324,7 @@ let createSolver = (cfg, opt = {}) => {
                     }
                     if (m.type === 'ready') {
                         emit('onReady', m)
+                        release(wk, m.workerId) //第1輪亦經閘放行
                     }
                     else if (m.type === 'candidate') {
                         emit('onCandidate', m)
@@ -281,10 +333,13 @@ let createSolver = (cfg, opt = {}) => {
                         onRoundDone(m)
                         maybeStop()
                         if (!stopReason) {
-                            try {
-                                wk.postMessage({ type: 'continue' }) //未達停止條件才放行下一輪(worker於round後等此回覆)
+                            roundsOf[m.workerId] = (roundsOf[m.workerId] || 0) + 1
+                            if (capPerWorker > 0 &amp;&amp; roundsOf[m.workerId] >= capPerWorker) {
+                                proceed(wk) //該worker已達maxRoundsPerWorker, 放行後即結束, 不會再起跑, 故不過閘
                             }
-                            catch (err) {}
+                            else {
+                                release(wk, m.workerId) //未達停止條件才經閘放行下一輪
+                            }
                         }
                     }
                     else if (m.type === 'error') {
@@ -301,9 +356,6 @@ let createSolver = (cfg, opt = {}) => {
                     emit('onError', err)
                 })
                 wk.on('exit', onExit)
-            }
-            if (stopFlag) {
-                requestStop('stop()')
             }
         })
         wks = []
@@ -380,7 +432,7 @@ export default solve
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Sun Nov 08 2026 18:01:45 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Sun Nov 08 2026 20:48:14 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
 </footer>
 
 <script>prettyPrint();</script>
