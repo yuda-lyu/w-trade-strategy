@@ -1,11 +1,11 @@
 {
   "name": "w-trade-strategy",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "main": "dist/w-trade-strategy.umd.js",
   "dependencies": {
     "w-data-csv": "^1.0.50",
     "w-data-tdprovide": "^1.0.34",
-    "w-data-trade": "^1.0.36",
+    "w-data-trade": "^1.0.37",
     "w-dwdata-binance": "^1.0.46",
     "w-trade-backtest": "^1.1.29",
     "w-trade-solve": "^2.0.28",
