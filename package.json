@@ -1,15 +1,15 @@
 {
   "name": "w-trade-strategy",
-  "version": "1.0.13",
+  "version": "1.0.14",
   "main": "dist/w-trade-strategy.umd.js",
   "dependencies": {
-    "w-data-csv": "^1.0.58",
-    "w-data-tdprovide": "^1.0.42",
-    "w-data-trade": "^1.0.45",
-    "w-dwdata-binance": "^1.0.54",
-    "w-trade-backtest": "^1.1.37",
-    "w-trade-solve": "^2.0.36",
-    "wsemi": "^1.9.62"
+    "w-data-csv": "^1.0.59",
+    "w-data-tdprovide": "^1.0.43",
+    "w-data-trade": "^1.0.46",
+    "w-dwdata-binance": "^1.0.55",
+    "w-trade-backtest": "^1.1.38",
+    "w-trade-solve": "^2.0.37",
+    "wsemi": "^1.9.63"
   },
   "devDependencies": {
     "w-package-tools": "^1.1.28"
