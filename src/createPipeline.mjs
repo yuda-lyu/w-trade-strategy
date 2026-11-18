@@ -10,18 +10,19 @@ import buildCache from './cache/buildCache.mjs'
 import sweepSingle from './sweep/sweepSingle.mjs'
 import sweepPairs from './sweep/sweepPairs.mjs'
 import { createSolver, solve } from './solve/solve.mjs'
+import recomputeStrategies from './recompute/recomputeStrategies.mjs'
 import { readJsonOr, listJsonKeys, countJson } from './util/fsx.mjs'
 
 
 /**
  * 建立策略庫管線(以設定綁定各階段函數)
  *
- * 階段: fetchData(幣安抓取) → buildOhlc(整理K線序列) → buildParams(計算因子序列) → buildCache(先觸快取) → sweepSingle/sweepPairs(因子普測) 與 solve/createSolver(最佳化求解擴建策略庫)
+ * 階段: fetchData(幣安抓取) → buildOhlc(整理K線序列) → buildParams(計算因子序列) → buildCache(先觸快取) → sweepSingle/sweepPairs(因子普測) 與 solve/createSolver(最佳化求解擴建策略庫)；另有recomputeStrategies(既有策略庫改以基礎單位重算摘要, 不重新求解)
  * prepare(opt)依序執行fetchData(僅source為'binance'且opt.fetch不為false時)、buildOhlc、buildParams、buildCache(opt.cache為false時略過)，各階段選項由opt.fetchOpt、opt.ohlcOpt、opt.paramsOpt、opt.cacheOpt傳入，回傳{fetch?,ohlc,params,cache?}
  *
  * @function
  * @param {Object} cfgIn 輸入設定物件(見normalizeCfg)
- * @returns {Object} 回傳管線物件{cfg,fetchData,buildOhlc,buildParams,buildCache,prepare,sweepSingle,sweepPairs,solve,createSolver,readStrategies,countStrategies,status}
+ * @returns {Object} 回傳管線物件{cfg,fetchData,buildOhlc,buildParams,buildCache,prepare,sweepSingle,sweepPairs,solve,createSolver,recomputeStrategies,readStrategies,countStrategies,status}
  * @example
  *
  * let pl = createPipeline({ root: './data', name: 'ETH', symbol: 'ETHUSDT', interval: '4hr', train: { timeStart: '2022-07-01T00:00:00', timeEnd: '2025-10-06T00:00:00' } })
@@ -73,6 +74,7 @@ let createPipeline = (cfgIn) => {
         sweepPairs: (opt = {}) => sweepPairs(cfg, opt),
         solve: (opt = {}) => solve(cfg, opt),
         createSolver: (opt = {}) => createSolver(cfg, opt),
+        recomputeStrategies: (opt = {}) => recomputeStrategies(cfg, opt),
         readStrategies: (fd, opt = {}) => readStrategies(fdOf(fd, cfg.fds.strategies), opt),
         countStrategies: (fd) => countJson(fdOf(fd, cfg.fds.strategies)),
         status,

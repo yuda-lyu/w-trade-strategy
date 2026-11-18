@@ -6,6 +6,7 @@ import isestr from 'wsemi/src/isestr.mjs'
 import isearr from 'wsemi/src/isearr.mjs'
 import isfun from 'wsemi/src/isfun.mjs'
 import isnum from 'wsemi/src/isnum.mjs'
+import isobj from 'wsemi/src/isobj.mjs'
 import dataProvide from 'w-data-tdprovide/src/WDataTdprovide.mjs'
 import estimFinder from 'w-trade-solve/src/estimFinder.mjs'
 import runStrategy from 'w-trade-backtest/src/runStrategy.mjs'
@@ -204,7 +205,7 @@ let prepareSolve = async (cfg, opt = {}) => {
  * @param {Object} opt 輸入求解設定物件(見solve)
  * @param {Object} prep 輸入prepareSolve之回傳
  * @param {Object} [hooks={}] 輸入事件回呼{onCandidate(ev)}，onCandidate於每個達門檻且將存檔之候選策略觸發(存檔前官方重跑之後)
- * @returns {Promise} 回傳Promise，resolve為{mode,comps,timeStart,timeEnd,candidates,elapsedMs}
+ * @returns {Promise} 回傳Promise，resolve為{mode,comps,timeStart,timeEnd,candidates,elapsedMs}；cfg.settings含unit(基礎單位)時以cfg.settings.uIni與unit求解(策略之settings記錄之；單一策略之最大持倉名義不設門檻)
  * @example
  * need test in nodejs.
  *
@@ -283,6 +284,12 @@ let runRound = async (cfg, opt, prep, hooks = {}) => {
     let oml = get(opt, 'oml', null)
     if (oml && typeof oml === 'object') {
         o = { ...o, ...oml } //最佳化演算法設定(Np、Ng、NContiguous等, 原樣傳遞至w-optimization)
+    }
+
+    //unit, 給cfg.settings.unit(基礎單位)時把研究用本金與基礎單位交給estimKeys(策略之settings記錄之; 單一策略之最大持倉名義不設門檻); 未給時不傳(同既有, estimKeys之uIni 1000)
+    if (isobj(get(cfg, 'settings.unit', null))) {
+        o.uIni = cfg.settings.uIni
+        o.unit = cfg.settings.unit
     }
 
     await estimFinder(prep.ott, cfg.name, cfg.symbol, cfg.interval, cfg.fds.ohlc, cfg.fds.param, prep.fdStrategies, o)

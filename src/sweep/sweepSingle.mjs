@@ -29,7 +29,7 @@ import { ensureFolder, cleanFolder, listJsonKeys, writeJson } from '../util/fsx.
  * @param {Boolean} [opt.cleanFdOut=true] 輸入開跑前是否清空輸出資料夾
  * @param {Function} [opt.filterKeys] 輸入因子key過濾函數(keys) => keys，可為async
  * @param {Function} [opt.onProgress] 輸入進度回呼({i,n,nOut,elapsedMs})
- * @returns {Promise} 回傳Promise，resolve為{nFactors,nOut,fdTar,elapsedMs}
+ * @returns {Promise} 回傳Promise，resolve為{nFactors,nOut,fdTar,elapsedMs}；cfg.settings含unit(基礎單位)時每單名義依基礎單位、策略檔之settings記錄unit(單一策略之最大持倉名義不設門檻，只隨summary落地)
  * @example
  * need test in nodejs.
  *

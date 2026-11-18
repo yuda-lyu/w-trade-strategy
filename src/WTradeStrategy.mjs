@@ -2,7 +2,7 @@
 //  不另放邏輯; 各模組之函數皆可自其檔以深層路徑取用
 import readStrategies from 'w-trade-solve/src/readStrategies.mjs'
 import createPipeline from './createPipeline.mjs'
-import normalizeCfg, { INTERVALS, FDS, CFG_KEYS, intervalSec, serializableCfg } from './cfg.mjs'
+import normalizeCfg, { INTERVALS, FDS, CFG_KEYS, intervalSec, serializableCfg, normalizeUnit } from './cfg.mjs'
 import fetchBinance, { ENDPOINT_PRICE, ENDPOINT_INDEX } from './data/fetchBinance.mjs'
 import buildOhlc, { HEADS_PRICE, HEADS_INDEX, normalizeExternal, isBarComplete } from './data/buildOhlc.mjs'
 import buildParams, { buildKp, validateDef, nmKeyOf } from './params/buildParams.mjs'
@@ -15,6 +15,7 @@ import { buildBaseBars, calcOrdersStability, binomTailGE } from './sweep/calcOrd
 import { createSolver, solve, EVENT_KEYS, SOLVE_OPT_KEYS } from './solve/solve.mjs'
 import { COMPS_ALL, classifyKeys, parseComps, allowedComps, prepareSolve, runRound } from './solve/solveRound.mjs'
 import makeFastEngine from './solve/fastEngine.mjs'
+import recomputeStrategies, { RECOMPUTE_MODES, RECOMPUTE_FAIL_STATUSES } from './recompute/recomputeStrategies.mjs'
 import CATALOG, { funAddKeysInVbs } from './params/catalog.mjs'
 import { isKeyCloseOnly, filterKeysCloseOnly, compsCloseOnly } from './params/keysCloseOnly.mjs'
 import { makeOtt } from './util/ott.mjs'
@@ -25,8 +26,8 @@ import { countJson } from './util/fsx.mjs'
 /**
  * 策略庫建置管線套件之聚合物件(與各模組之匯出為同一實體)
  *
- * 總組裝：createPipeline(cfg)(別名createTradeStrategy)；階段函數：fetchBinance、buildOhlc、buildParams、buildCache、sweepSingle、sweepPairs、solve、createSolver；
- * 設定與常數：normalizeCfg、CFG_KEYS、INTERVALS、FDS、CATALOG、COMPS_ALL、compsCloseOnly、TPS_DEFAULT、EVENT_KEYS、SOLVE_OPT_KEYS；
+ * 總組裝：createPipeline(cfg)(別名createTradeStrategy)；階段函數：fetchBinance、buildOhlc、buildParams、buildCache、sweepSingle、sweepPairs、solve、createSolver、recomputeStrategies(策略庫依基礎單位重算)；
+ * 設定與常數：normalizeCfg、normalizeUnit、CFG_KEYS、INTERVALS、FDS、CATALOG、COMPS_ALL、compsCloseOnly、TPS_DEFAULT、EVENT_KEYS、SOLVE_OPT_KEYS、RECOMPUTE_MODES、RECOMPUTE_FAIL_STATUSES；
  * 工具：classifyKeys、parseComps、allowedComps、isKeyCloseOnly、filterKeysCloseOnly、readStrategies、countStrategies、makeOtt、parfor等
  *
  * @type {Object}
@@ -48,6 +49,7 @@ let WTradeStrategy = {
 
     //設定
     normalizeCfg,
+    normalizeUnit,
     serializableCfg,
     CFG_KEYS,
     INTERVALS,
@@ -101,6 +103,11 @@ let WTradeStrategy = {
     allowedComps,
     EVENT_KEYS,
     SOLVE_OPT_KEYS,
+
+    //策略庫重算(基礎單位)
+    recomputeStrategies,
+    RECOMPUTE_MODES,
+    RECOMPUTE_FAIL_STATUSES,
 
     //工具
     readStrategies,

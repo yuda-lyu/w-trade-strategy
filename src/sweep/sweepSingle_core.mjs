@@ -23,7 +23,7 @@ import { makeOtt } from '../util/ott.mjs'
  *
  * @function
  * @param {Object} sc 輸入sweepCfgOf之普測設定物件
- * @returns {Function} 回傳async函數core(job) => {factor,strategies}，job為{factor,arr,numTradeFinMin,useAssm,usePlateau}
+ * @returns {Function} 回傳async函數core(job) => {factor,strategies}，job為{factor,arr,numTradeFinMin,useAssm,usePlateau}；sc含unit(基礎單位)時每單名義依基礎單位、策略之settings另含unit(最大持倉名義不設門檻，只隨summary落地)
  * @example
  * need test in nodejs.
  *
@@ -52,11 +52,18 @@ let createCore = (sc) => {
     }
 
     let optOrders = { uTrade: sc.uTrade, uIni: sc.uIni, rFee: sc.rFee, maxExitTime: sc.exitCut }
+    if (sc.unit) {
+        optOrders.unit = sc.unit //基礎單位: 每單名義依進場價與交易規則
+    }
 
     //buildStrategy, 組單因子策略物件(raw)
     let buildStrategy = (mode, factor, sym, th, tpsl, summary = {}) => {
         let r = tpsl / 100
         let conds = [{ key: factor, sym, th }]
+        let settings = { uIni: sc.uIni, uTrade: sc.uTrade, rTakeProfit: r, rStopLoss: r, rFee: sc.rFee }
+        if (sc.unit) {
+            settings.unit = sc.unit //交易規則與緩衝隨策略檔落地
+        }
         return {
             tid: genTid(sc.name, sc.interval, mode, [factor]),
             sid: genSid(sc.name, sc.interval, mode, conds),
@@ -66,7 +73,7 @@ let createCore = (sc) => {
             keyOhlc: sc.keyOhlc,
             mode,
             conds,
-            settings: { uIni: sc.uIni, uTrade: sc.uTrade, rTakeProfit: r, rStopLoss: r, rFee: sc.rFee },
+            settings,
             summary,
         }
     }

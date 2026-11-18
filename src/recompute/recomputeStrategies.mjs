@@ -1,0 +1,560 @@
+import fs from 'fs'
+import path from 'path'
+import crypto from 'crypto'
+import { fileURLToPath } from 'url'
+import get from 'lodash-es/get.js'
+import isEqual from 'lodash-es/isEqual.js'
+import cdbl from 'wsemi/src/cdbl.mjs'
+import cint from 'wsemi/src/cint.mjs'
+import iseint from 'wsemi/src/iseint.mjs'
+import isenum from 'wsemi/src/isenum.mjs'
+import isestr from 'wsemi/src/isestr.mjs'
+import isfun from 'wsemi/src/isfun.mjs'
+import parfor from '../util/parfor.mjs'
+import { normalizeUnit } from '../cfg.mjs'
+import { ensureFolder } from '../util/fsx.mjs'
+import relationOf from './pathRelation.mjs'
+import { acquireRecomputeLock, releaseRecomputeLock } from './recomputeLock.mjs'
+
+
+/**
+ * 策略庫重算之模式：'verify'(只做忠實重放之驗證)、'dry'(驗證並以新口徑重算、只出統計不寫檔)、'write'(驗證、重算並寫至另一夾)
+ *
+ * @type {Array}
+ */
+let RECOMPUTE_MODES = Object.freeze(['verify', 'dry', 'write'])
+
+
+/**
+ * 策略庫重算之不合格狀態(mismatch忠實重放不符、r8交易筆數或勝率或檔名改變、unsupported非求解所落地之策略檔、error例外)；最大持倉名義超過研究用本金不在此列(只統計、不處置)
+ *
+ * @type {Array}
+ */
+let RECOMPUTE_FAIL_STATUSES = Object.freeze(['mismatch', 'r8', 'unsupported', 'error'])
+
+
+/**
+ * 數值陣列之分布摘要(最近秩分位數)
+ *
+ * @function
+ * @param {Array} vs 輸入數值陣列
+ * @returns {Object|null} 回傳{n,min,p05,p25,p50,p75,p95,max,mean}，空陣列時回傳null
+ * @example
+ *
+ * console.log(JSON.stringify(quantilesOf([5, 1, 4, 2, 3])))
+ * // => {"n":5,"min":1,"p05":1,"p25":2,"p50":3,"p75":4,"p95":5,"max":5,"mean":3}
+ *
+ */
+let quantilesOf = (vs) => {
+    let s = vs.filter((v) => Number.isFinite(v)).sort((a, b) => a - b)
+    let n = s.length
+    if (n === 0) {
+        return null
+    }
+    let q = (p) => s[Math.round(p * (n - 1))]
+    let mean = s.reduce((t, v) => t + v, 0) / n
+    return { n, min: s[0], p05: q(0.05), p25: q(0.25), p50: q(0.5), p75: q(0.75), p95: q(0.95), max: s[n - 1], mean }
+}
+
+
+//r2p, 比例轉百分比數值(取至1e-6%以免浮點雜訊)
+let r2p = (v) => Math.round(v * 1e8) / 1e6
+
+//sha256Of, 文字或位元組之雜湊
+let sha256Of = (data) => crypto.createHash('sha256').update(data).digest('hex')
+
+//renameRetry, 改名(目標被他行程短暫開啟時重試數次)
+let renameRetry = (from, to) => {
+    for (let k = 0; ; k++) {
+        try {
+            fs.renameSync(from, to)
+            return
+        }
+        catch (err) {
+            if (k >= 5 || !['EPERM', 'EBUSY', 'EACCES'].includes(err.code)) {
+                throw err
+            }
+            Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100 * (k + 1))
+        }
+    }
+}
+
+//pkgVersionOf, 套件版本(自本套件之位置向上找node_modules; 本套件自身之版本讀套件根之package.json), 找不到時為null
+let FD_SELF = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
+let pkgVersionOf = (name) => {
+    try {
+        if (name === 'w-trade-strategy') {
+            return JSON.parse(fs.readFileSync(path.join(FD_SELF, 'package.json'), 'utf8')).version
+        }
+        for (let dir = FD_SELF; ; dir = path.dirname(dir)) {
+            let fp = path.join(dir, 'node_modules', name, 'package.json')
+            if (fs.existsSync(fp)) {
+                return JSON.parse(fs.readFileSync(fp, 'utf8')).version
+            }
+            if (path.dirname(dir) === dir) {
+                return null
+            }
+        }
+    }
+    catch (err) {
+        return null
+    }
+}
+
+
+/**
+ * 策略庫重算: 既有策略不重新求解，逐檔把settings改記研究用本金uIni與基礎單位unit、摘要依新口徑(每單名義依基礎單位)重算後寫至另一夾
+ *
+ * 逐檔先做忠實重放(以檔內settings於其求解時間窗重跑官方runStrategy，摘要須與檔內逐欄相同；檔內fitness與現行calcFitness不同者另記fitnessStale，不擋重算、重算時以現行calcFitness重寫)；只有通過者才以新口徑重算，並斷言交易筆數、已平倉筆數、勝率與檔名不變；單一策略之最大持倉名義不設門檻(不剔除、不中止)，只統計超過uIni之隻數與最大者
+ * 模式: verify只驗證、dry重算但不寫檔、write重算並寫至opt.fdOut；write遇任一不合格即中止(不再寫檔並列出；不可關閉)，verify與dry預設跑完並列出全部不合格(opt.stopOnError可改)
+ * 寫出之安全(不得毀損或覆寫原策略庫; 下列檢查皆於寫入來源夾與輸出夾之前): 不提供原地寫回；fdOut與fdIn為同一夾或互為上下層即拋錯(以realpathSync.native正規化、win32不分大小寫、另以dev與ino比對目錄本體, 故大小寫、8.3短名、目錄連結之別名皆拒；檔案識別為0者不以識別比對；實體路徑取不到即拒絕執行)；fdReport不得等於或位於fdIn或fdOut之內(各模式皆檢)；建立fdOut之後再核一次三夾之關係(目錄本體之比對此時才生效)；無可續之journal時fdOut須不存在或不含*.json；暫存檔寫完再改名(目標被短暫開啟時重試)
+ * 可中斷續跑: 每檔結果逐行記於opt.fdReport之journal_<mode>.jsonl(首行header記模式、資料夾、目標口徑、數據夾、時區、門檻與三個套件之版本，續跑時須相同；各列另記來源檔之位元組數與修改時刻)；續跑時已為ok或already者略過(來源檔之位元組數或修改時刻已變者重做；write另核對輸出檔之位元組數與雜湊，不符即重做)、不合格者重做；末行半截(中斷所致)者丟棄後續跑；同一fdReport以鎖檔recompute.lock防兩個重算同時使用(見recomputeLock.mjs)
+ * 結束時(含例外中止，標crashed)寫report_<mode>.json(統計)、failures_<mode>.json(全部不合格)、cross_<mode>.json(跨過入庫門檻與無門檻者之全部清單)、overUIni_<mode>.json(新口徑之最大持倉名義超過uIni者，只列不處置)、nameMismatch_<mode>.json(檔名與檔內交易次數級距不一致者，只列)，並回傳統計
+ * 入庫門檻取檔內solve.thREquivalentCumuProfitOrLossFinalNormYear；檔內無門檻者，給opt.thEqYr即以之計(nThFallback)，未給則列為noThreshold、不計入跨門檻(套件不給預設門檻)
+ * 檔內settings已等於目標者(uIni之數值相同、unit以buildBaseUnitNotional之key判同一口徑且記錄欄asOf、source與其他欄相同；檔內數字字串與數字同值者視為相同)且fitness為現行算法者為already；選項之數字字串(uIni、unit、thEqYr、takeLimit、limit)檢測通過即轉為數值，錯誤訊息為`invalid opt.<名稱>: must be <種類>`、不含輸入值
+ * 只處理fdIn第1層之json檔(依檔名排序)；不新增、不刪除、不改名任何策略檔；相對路徑皆相對於呼叫時之工作目錄(process.cwd())
+ *
+ * @function
+ * @param {Object} cfg 輸入normalizeCfg正規化後之設定物件(使用fds.ohlc、fds.param、fds.strategies、fds.meta、timeZone與settings)
+ * @param {Object} [opt={}] 輸入設定物件，預設{}
+ * @param {String} [opt.mode='verify'] 輸入模式'verify'、'dry'或'write'
+ * @param {String} [opt.fdIn] 輸入策略庫資料夾，預設cfg.fds.strategies
+ * @param {String} [opt.fdOut] 輸入write模式之輸出資料夾(必填；不可與fdIn同夾或互為上下層)
+ * @param {String} [opt.fdReport] 輸入續跑紀錄與統計之資料夾(不可等於或位於fdIn、fdOut之內)，預設cfg.fds.meta/recompute
+ * @param {Number|String} [opt.uIni] 輸入目標研究用本金(統計超過者之基準，只列不判；有效正數，數字或數字字串，通過即轉為數值)，預設cfg.settings.uIni(dry與write用)
+ * @param {Object} [opt.unit] 輸入目標基礎單位{rule,buffer,units}(rule須記asOf與source；rule三欄、buffer、units之數字字串經normalizeUnit檢測後轉為數值，策略檔落地皆為數值)，預設cfg.settings.unit(dry與write必須有其一；給予時優先)
+ * @param {Number|String} [opt.thEqYr] 輸入策略檔未記門檻時所用之入庫門檻(等效年化比例，有效數字，數字或數字字串，通過即轉為數值)；未給時無門檻者不計入跨門檻
+ * @param {Array} [opt.files] 輸入只處理之檔名字串陣列(須在fdIn內；給予時須為非空陣列，否則拋錯)，預設全部
+ * @param {Integer|String} [opt.limit=0] 輸入只處理前limit檔(依檔名排序)非負整數(整數或整數字串，通過即轉為數值)，0為全部，非非負整數即拋錯
+ * @param {Integer|String} [opt.takeLimit=2] 輸入同時worker數正整數(整數或整數字串，通過即轉為數值；每worker載入全部序列一次)，非正整數即拋錯
+ * @param {Boolean} [opt.resume=true] 輸入是否沿用journal續跑，false則清空重記
+ * @param {Boolean} [opt.stopOnError] 輸入遇不合格是否中止，write恆為true(給false即拋錯)、其餘預設false
+ * @param {Function} [opt.onProgress] 輸入進度回呼({i,n,counts,elapsedMs})，回呼拋錯只計數不中斷
+ * @param {Object} [deps={}] 輸入可替換之相依{pathDeps,hooks,parfor}(只供測試注入: pathDeps替換路徑判定之檔案系統操作, hooks.lock.beforeTakeover與hooks.beforeEnsureFdOut為測試用之鉤子, parfor替換平行執行函數以觀察傳入之worker數)，預設{}
+ * @returns {Promise} 回傳Promise，resolve為統計物件{mode,fdIn,fdOut,fdReport,target,thEqYr,versions,nFiles,nSelected,nRun,nFromJournal,nRedo,counts,ok,complete,aborted,abortReason,crashed,failures,nFailures,faithful,diffFields,eqYrBefore,eqYrAfter,eqYrDelta,cross,uTradeAllMaxAfter,unitsMaxAfter,overUIni,nameMismatch,namesSame,journalTruncated,staleLock,progressErrors,elapsedMs,msPerFile}；write之ok須complete、無不合格且namesSame為true(namesSame: 輸出夾之*.json皆屬journal已記為寫出者、且涵蓋本次所選；全庫時另須檔數等於fdIn之檔數)；eqYr之分布為百分比數值，前後以同一母體(重算成功者)計
+ * @example
+ * need test in nodejs.
+ *
+ * let r = await recomputeStrategies(cfg, { mode: 'verify', takeLimit: 4 })
+ * console.log(r.counts, r.faithful)
+ * let r2 = await recomputeStrategies(cfg, { mode: 'write', fdOut: path.resolve(root, 'strategies_bu'), uIni: 10000, unit, thEqYr: 0.15, takeLimit: 4 })
+ * console.log(r2.ok, r2.namesSame, r2.cross.nDown, r2.eqYrAfter)
+ */
+let recomputeStrategies = async (cfg, opt = {}, deps = {}) => {
+
+    //deps, 只供測試注入
+    let pathDeps = get(deps, 'pathDeps', {})
+    let hooks = get(deps, 'hooks', {})
+    let runParfor = isfun(get(deps, 'parfor', null)) ? deps.parfor : parfor
+
+    //mode
+    let mode = get(opt, 'mode', 'verify')
+    if (!RECOMPUTE_MODES.includes(mode)) {
+        throw new Error(`invalid opt.mode: must be one of ${RECOMPUTE_MODES.map((m) => `'${m}'`).join(', ')}`)
+    }
+
+    //fdIn
+    let fdIn = get(opt, 'fdIn', '')
+    fdIn = isestr(fdIn) ? path.resolve(fdIn) : cfg.fds.strategies
+    if (!fs.existsSync(fdIn) || !fs.statSync(fdIn).isDirectory()) {
+        throw new Error(`invalid opt.fdIn: must be an existing folder`)
+    }
+
+    //target, 目標口徑: unit經normalizeUnit(數字字串轉為數值), uIni為有效正數(數字或數字字串, 通過即轉為數值; 檢測之值即使用之值)
+    let target = null
+    if (mode !== 'verify') {
+        let unit = get(opt, 'unit', null)
+        let nameUnit = 'opt.unit'
+        if (unit === null) {
+            unit = get(cfg, 'settings.unit', null)
+            nameUnit = 'cfg.settings.unit'
+        }
+        if (unit === null) {
+            throw new Error(`invalid opt.unit: must be an object when mode is dry or write (or set cfg.settings.unit)`)
+        }
+        unit = normalizeUnit(unit, nameUnit)
+        let uIni = get(opt, 'uIni', null)
+        let nameUIni = 'opt.uIni'
+        if (uIni === null) {
+            uIni = get(cfg, 'settings.uIni', null)
+            nameUIni = 'cfg.settings.uIni'
+        }
+        if (!isenum(uIni, { gt: 0 })) {
+            throw new Error(`invalid ${nameUIni}: must be a positive number`)
+        }
+        target = { uIni: cdbl(uIni), unit }
+    }
+
+    //thEqYr, 套件不給預設門檻; 給予時須為有效數字(數字或數字字串, 通過即轉為數值)
+    let thEqYr = get(opt, 'thEqYr', null)
+    if (thEqYr !== null) {
+        if (!isenum(thEqYr)) {
+            throw new Error(`invalid opt.thEqYr: must be a valid number`)
+        }
+        thEqYr = cdbl(thEqYr)
+    }
+
+    //takeLimit, 正整數(整數或整數字串, 通過即轉為數值)
+    let takeLimit = get(opt, 'takeLimit', 2)
+    if (!iseint(takeLimit, { min: 1 })) {
+        throw new Error(`invalid opt.takeLimit: must be a positive integer`)
+    }
+    takeLimit = cint(takeLimit)
+
+    //stopOnError, write恆中止
+    if (mode === 'write' && get(opt, 'stopOnError', true) === false) {
+        throw new Error(`invalid opt.stopOnError: must be true or unset when mode is write (an unqualified file is not written, continuing would leave the output folder short of files)`)
+    }
+    let stopOnError = mode === 'write' ? true : get(opt, 'stopOnError', false) === true
+
+    //fdOut, write須明給(不提供原地寫回)
+    let fdOut = null
+    if (mode === 'write') {
+        fdOut = get(opt, 'fdOut', '')
+        if (!isestr(fdOut)) {
+            throw new Error(`invalid opt.fdOut: must be a folder path string when mode is write (another folder; in-place write is not provided)`)
+        }
+        fdOut = path.resolve(fdOut)
+    }
+
+    //fdReport
+    let fdReport = get(opt, 'fdReport', '')
+    fdReport = isestr(fdReport) ? path.resolve(fdReport) : path.resolve(cfg.fds.meta, 'recompute')
+
+    //checkFolders, 三夾之關係: fdOut不得與fdIn同夾或互為上下層(含別名); fdReport不得等於或位於fdIn、fdOut之內
+    //  寫入前檢一次, 建立fdOut之後再檢一次(此時fdOut已存在, 目錄本體之比對才生效, 並封住檢查之後才被建成連結之先查後做)
+    let checkFolders = () => {
+        if (fdOut !== null) {
+            let rel = relationOf(fdOut, fdIn, pathDeps)
+            if (rel !== null) {
+                throw new Error(`opt.fdOut與fdIn為${rel === 'same' ? '同一夾(含大小寫或目錄連結之別名)' : '上下層'}, 不可寫出(不提供原地寫回)`)
+            }
+        }
+        for (let [name, fd] of [['fdIn', fdIn], ['fdOut', fdOut]]) {
+            if (fd === null) {
+                continue
+            }
+            let rel = relationOf(fdReport, fd, pathDeps)
+            if (rel === 'same' || rel === 'aInB') {
+                throw new Error(`opt.fdReport不可等於或位於${name}之內`)
+            }
+        }
+    }
+    checkFolders()
+    let resume = get(opt, 'resume', true) !== false
+    let onProgress = get(opt, 'onProgress', null)
+
+    //files
+    let all = fs.readdirSync(fdIn).filter((f) => f.endsWith('.json')).sort()
+    let selected = all
+    let files = get(opt, 'files', null)
+    if (files !== null) {
+        if (!(Array.isArray(files) && files.length > 0 && files.every((f) => isestr(f)))) {
+            throw new Error(`invalid opt.files: must be a non-empty array of file name strings`)
+        }
+        let set = new Set(all)
+        if (files.some((f) => !set.has(f))) {
+            throw new Error(`invalid opt.files: must be file names that exist in fdIn`)
+        }
+        selected = [...new Set(files)].sort()
+    }
+    let limit = get(opt, 'limit', 0) //非負整數(整數或整數字串, 通過即轉為數值; 0為全部)
+    if (!iseint(limit, { min: 0 })) {
+        throw new Error(`invalid opt.limit: must be a non-negative integer`)
+    }
+    limit = cint(limit)
+    if (limit > 0) {
+        selected = selected.slice(0, limit)
+    }
+    let isFull = selected.length === all.length
+
+    //lock, 同一fdReport只容一個執行中之重算(原子建立; 殘留者以改名接手; 見recomputeLock.mjs)
+    ensureFolder(fdReport)
+    let lock = acquireRecomputeLock(fdReport, { mode }, get(hooks, 'lock', {}))
+    let staleLock = lock.staleLock
+
+    let t0 = Date.now()
+    let i = 0
+    let n = 0
+    let counts = {}
+    let entries = new Map()
+    let aborted = false
+    let abortReason = null
+    let journalTruncated = 0
+    let progressErrors = 0
+    let nFromJournal = 0
+    let nRedo = 0
+    let started = false
+    let versions = { 'w-trade-strategy': pkgVersionOf('w-trade-strategy'), 'w-trade-solve': pkgVersionOf('w-trade-solve'), 'w-trade-backtest': pkgVersionOf('w-trade-backtest') }
+
+    //buildReport, 統計(本次與journal之全部選取檔)並寫出各檔
+    let buildReport = (crashed) => {
+        let es = selected.map((f) => entries.get(f)).filter((e) => e)
+        let isDone = (e) => e && (e.status === 'ok' || e.status === 'already')
+        let failures = es.filter((e) => RECOMPUTE_FAIL_STATUSES.includes(e.status))
+        let complete = !crashed && !aborted && es.length === selected.length && es.every(isDone)
+        let faithfulPass = es.filter((e) => ['ok', 'already', 'r8'].includes(e.status)).length
+        let mismatchFields = {}
+        let diffFields = {}
+        for (let e of es) {
+            let tgt = e.status === 'mismatch' ? mismatchFields : (e.status === 'ok' && mode !== 'verify' ? diffFields : null)
+            if (tgt) {
+                for (let k of e.diffFields || []) {
+                    tgt[k] = (tgt[k] || 0) + 1
+                }
+            }
+        }
+        //base, 統計之母體: verify為忠實重放相符者; dry/write為重算成功者(前後同一母體)
+        let base = mode === 'verify'
+            ? es.filter((e) => e.status === 'ok' && Number.isFinite(e.eqYr0))
+            : es.filter((e) => (e.status === 'ok' || e.status === 'already') && Number.isFinite(e.eqYr0) && Number.isFinite(e.eqYr1))
+        let thFileOf = (e) => (typeof e.th === 'number' && Number.isFinite(e.th) ? e.th : null)
+        let thOf = (e) => (thFileOf(e) !== null ? thFileOf(e) : thEqYr)
+        let withTh = base.filter((e) => thOf(e) !== null)
+        let noThreshold = base.filter((e) => thOf(e) === null).map((e) => e.fn)
+        let nThFallback = base.filter((e) => thFileOf(e) === null && thEqYr !== null).length
+        let nBelowBefore = withTh.filter((e) => e.eqYr0 < thOf(e)).length
+        let nBelowAfter = mode === 'verify' ? null : withTh.filter((e) => e.eqYr1 < thOf(e)).length
+        let down = mode === 'verify' ? [] : withTh.filter((e) => e.eqYr0 >= thOf(e) && e.eqYr1 < thOf(e)).map((e) => ({ fn: e.fn, before: r2p(e.eqYr0), after: r2p(e.eqYr1), th: r2p(thOf(e)) }))
+        let up = mode === 'verify' ? [] : withTh.filter((e) => e.eqYr0 < thOf(e) && e.eqYr1 >= thOf(e)).map((e) => ({ fn: e.fn, before: r2p(e.eqYr0), after: r2p(e.eqYr1), th: r2p(thOf(e)) }))
+        let nFitnessStale = es.filter((e) => e.fitnessStale === true).length
+        let qUtm = quantilesOf(base.filter((e) => Number.isFinite(e.uTradeAllMax1)).map((e) => e.uTradeAllMax1))
+        let qUnits = quantilesOf(base.filter((e) => Number.isFinite(e.unitsMax1)).map((e) => e.unitsMax1))
+        //overUIni, 新口徑之最大持倉名義超過目標uIni者(單一策略不設門檻: 只列、不處置)
+        let over = target ? base.filter((e) => Number.isFinite(e.uTradeAllMax1) && e.uTradeAllMax1 > target.uIni).map((e) => ({ fn: e.fn, uTradeAllMax: e.uTradeAllMax1, units: e.unitsMax1 })).sort((a, b) => b.uTradeAllMax - a.uTradeAllMax) : []
+        let nameMismatch = es.filter((e) => e.nameMismatch === true).map((e) => e.fn)
+        let namesSame = null
+        if (mode === 'write' && complete) {
+            //輸出夾之*.json皆屬journal已記為寫出者, 且涵蓋本次所選; 全庫時另須檔數等於fdIn之檔數(檔名集合相同)
+            let have = fs.readdirSync(fdOut).filter((f) => f.endsWith('.json'))
+            let haveSet = new Set(have)
+            let written = (f) => {
+                let e = entries.get(f)
+                return !!e && (e.status === 'ok' || e.status === 'already') && typeof e.outHash === 'string'
+            }
+            namesSame = have.every(written) && selected.every((f) => haveSet.has(f)) && (!isFull || have.length === all.length)
+        }
+        let ok = complete && failures.length === 0 && (mode !== 'write' || namesSame === true)
+        let elapsedMs = Date.now() - t0
+        let report = {
+            mode,
+            fdIn,
+            fdOut,
+            fdReport,
+            target,
+            thEqYr,
+            versions,
+            nFiles: all.length,
+            nSelected: selected.length,
+            nRun: i,
+            nFromJournal,
+            nRedo,
+            counts,
+            ok,
+            complete,
+            aborted,
+            abortReason,
+            crashed: crashed ? String(crashed) : null,
+            nFailures: failures.length,
+            failures: failures.slice(0, 50),
+            faithful: { nPass: faithfulPass, nMismatch: counts.mismatch || 0, mismatchFields, nFitnessStale },
+            diffFields,
+            eqYrBefore: quantilesOf(base.map((e) => r2p(e.eqYr0))),
+            eqYrAfter: mode === 'verify' ? null : quantilesOf(base.map((e) => r2p(e.eqYr1))),
+            eqYrDelta: mode === 'verify' ? null : quantilesOf(base.map((e) => r2p(e.eqYr1 - e.eqYr0))),
+            cross: { nBase: base.length, nWithThreshold: withTh.length, nThFallback, nNoThreshold: noThreshold.length, nDown: down.length, nUp: up.length, nBelowBefore, nBelowAfter, down: down.slice(0, 50), up: up.slice(0, 50), noThreshold: noThreshold.slice(0, 50) },
+            uTradeAllMaxAfter: mode === 'verify' ? null : (qUtm ? { ...qUtm, maxOverUIni: target ? qUtm.max / target.uIni : null } : null),
+            unitsMaxAfter: mode === 'verify' ? null : qUnits,
+            overUIni: target ? { uIni: target.uIni, n: over.length, maxUTradeAllMax: qUtm ? qUtm.max : null, maxUnits: qUnits ? qUnits.max : null, top: over.slice(0, 50) } : null,
+            nameMismatch: { n: nameMismatch.length, list: nameMismatch.slice(0, 50) },
+            namesSame,
+            journalTruncated,
+            staleLock,
+            progressErrors,
+            elapsedMs,
+            msPerFile: i > 0 ? elapsedMs / i : null,
+        }
+        fs.writeFileSync(path.resolve(fdReport, `report_${mode}.json`), JSON.stringify(report, null, 2), 'utf8')
+        fs.writeFileSync(path.resolve(fdReport, `failures_${mode}.json`), JSON.stringify(failures, null, 2), 'utf8')
+        fs.writeFileSync(path.resolve(fdReport, `cross_${mode}.json`), JSON.stringify({ down, up, noThreshold }, null, 2), 'utf8')
+        fs.writeFileSync(path.resolve(fdReport, `nameMismatch_${mode}.json`), JSON.stringify(nameMismatch, null, 2), 'utf8')
+        if (target) {
+            fs.writeFileSync(path.resolve(fdReport, `overUIni_${mode}.json`), JSON.stringify(over, null, 2), 'utf8')
+        }
+        return report
+    }
+
+    try {
+
+        //journal, 首行為header, 其後每檔一行
+        let fpJournal = path.resolve(fdReport, `journal_${mode}.jsonl`)
+        let header = { header: true, mode, fdIn, fdOut, target, fdOhlc: cfg.fds.ohlc, fdParam: cfg.fds.param, timeZone: cfg.timeZone, thEqYr, versions }
+        let resumed = false
+        if (resume && fs.existsSync(fpJournal)) {
+            let text = fs.readFileSync(fpJournal, 'utf8')
+            let segs = text.split('\n')
+            let tail = segs.pop() //末段: 以換行結尾時為空字串, 否則為中斷所遺之半截
+            if (tail.trim() !== '') {
+                journalTruncated = 1
+                fs.writeFileSync(fpJournal, segs.map((l) => `${l}\n`).join(''), 'utf8') //丟棄半截, 使其後之追加對齊
+            }
+            let lines = segs.filter((l) => l.trim() !== '')
+            let h = lines.length > 0 ? JSON.parse(lines[0]) : null
+            if (!isEqual(h, JSON.parse(JSON.stringify(header)))) {
+                throw new Error(`fdReport之journal之header與本次不符(模式、資料夾、目標口徑、數據、門檻或套件版本不同), 請改用他fdReport或resume:false`)
+            }
+            for (let l of lines.slice(1)) {
+                let e = JSON.parse(l)
+                entries.set(e.fn, e)
+            }
+            resumed = true
+        }
+
+        //fdOut, 無可續之journal(首次執行)時須不存在或不含*.json; 清除前次中斷所遺之暫存檔
+        if (mode === 'write') {
+            if (!resumed && fs.existsSync(fdOut) && fs.readdirSync(fdOut).some((f) => f.endsWith('.json'))) {
+                throw new Error(`opt.fdOut已含*.json, 首次執行須為不存在或不含*.json之夾`)
+            }
+            if (isfun(hooks.beforeEnsureFdOut)) {
+                hooks.beforeEnsureFdOut()
+            }
+            ensureFolder(fdOut)
+            checkFolders() //建立後再核一次(目錄本體之比對此時才生效)
+            for (let f of fs.readdirSync(fdOut)) {
+                if (f.endsWith('.tmp-recompute')) {
+                    fs.rmSync(path.resolve(fdOut, f), { force: true })
+                }
+            }
+        }
+        if (!resumed) {
+            fs.writeFileSync(fpJournal, JSON.stringify(header) + '\n', 'utf8')
+        }
+        started = true
+
+        //srcOf, 來源檔之位元組數與修改時刻(於派工前取得並記於journal; 續跑時不同即重做)
+        let srcOf = new Map()
+        for (let fn of selected) {
+            let st = fs.statSync(path.resolve(fdIn, fn))
+            srcOf.set(fn, { srcBytes: st.size, srcMtimeMs: st.mtimeMs })
+        }
+
+        //isDone, 可略過者: ok/already且來源檔未變; write另核對輸出檔之位元組數與雜湊
+        let isDoneJ = (fn) => {
+            let e = entries.get(fn)
+            if (!(e && (e.status === 'ok' || e.status === 'already'))) {
+                return false
+            }
+            let sc = srcOf.get(fn)
+            if (e.srcBytes !== sc.srcBytes || e.srcMtimeMs !== sc.srcMtimeMs) {
+                return false
+            }
+            if (mode !== 'write') {
+                return true
+            }
+            let fp = path.resolve(fdOut, fn)
+            if (!fs.existsSync(fp)) {
+                return false
+            }
+            let b = fs.readFileSync(fp)
+            return b.length === e.outBytes && sha256Of(b) === e.outHash
+        }
+        let jobs = []
+        for (let fn of selected) {
+            if (isDoneJ(fn)) {
+                nFromJournal++
+                let s = entries.get(fn).status
+                counts[s] = (counts[s] || 0) + 1
+            }
+            else {
+                if (entries.has(fn) && (entries.get(fn).status === 'ok' || entries.get(fn).status === 'already')) {
+                    nRedo++ //journal記為完成而來源檔已變或輸出檔缺或不符, 重做
+                }
+                jobs.push({ fn })
+            }
+        }
+
+        //run
+        n = jobs.length
+        let nr = Math.max(Math.floor(n / 200), 1)
+        let ABORT = new Error('recompute aborted')
+        let writeAtomic = (fp, data) => {
+            let tmp = `${fp}.tmp-recompute`
+            fs.writeFileSync(tmp, data)
+            renameRetry(tmp, fp)
+        }
+        let onResult = (r, k) => {
+            i++
+            let fn = jobs[k].fn
+            if (!r) {
+                r = { fn, status: 'error', detail: 'worker job failed' }
+            }
+            let { out, ...e } = r
+            Object.assign(e, srcOf.get(fn))
+            if (mode === 'write') {
+                let data = null
+                if (e.status === 'ok') {
+                    data = Buffer.from(JSON.stringify(out, null, 2), 'utf8')
+                }
+                else if (e.status === 'already') {
+                    data = fs.readFileSync(path.resolve(fdIn, fn))
+                }
+                if (data !== null) {
+                    writeAtomic(path.resolve(fdOut, fn), data)
+                    e.outBytes = data.length
+                    e.outHash = sha256Of(data)
+                }
+            }
+            entries.set(fn, e)
+            fs.appendFileSync(fpJournal, JSON.stringify(e) + '\n', 'utf8')
+            counts[e.status] = (counts[e.status] || 0) + 1
+            if (isfun(onProgress) && (i % nr === 0 || i === n)) {
+                try {
+                    onProgress({ i, n, counts: { ...counts }, elapsedMs: Date.now() - t0 })
+                }
+                catch (err) {
+                    progressErrors++
+                }
+            }
+            if (stopOnError && RECOMPUTE_FAIL_STATUSES.includes(e.status)) {
+                aborted = true
+                abortReason = `${fn}: ${e.status}${e.detail ? ` (${e.detail})` : ''}`
+                throw ABORT
+            }
+        }
+        if (n > 0) {
+            try {
+                await runParfor(new URL('./recomputeStrategies_worker.mjs', import.meta.url), jobs, {
+                    takeLimit,
+                    initData: { fdIn, fdOhlc: cfg.fds.ohlc, fdParam: cfg.fds.param, timeZone: cfg.timeZone, mode, target },
+                    cb: onResult,
+                })
+            }
+            catch (err) {
+                if (err !== ABORT) {
+                    throw err
+                }
+            }
+        }
+        return buildReport(null)
+    }
+    catch (err) {
+        //例外中止: 已開始處理者寫部分報告(標crashed)後再拋出; 起跑前之檢核失敗(header不符、fdOut非空等)不寫報告, 以免覆蓋前次之報告
+        if (started) {
+            try {
+                buildReport(err && err.message ? err.message : err)
+            }
+            catch (err2) {}
+        }
+        throw err
+    }
+    finally {
+        try {
+            releaseRecomputeLock(lock)
+        }
+        catch (err) {}
+    }
+}
+
+
+export { RECOMPUTE_MODES, RECOMPUTE_FAIL_STATUSES, quantilesOf }
+export default recomputeStrategies

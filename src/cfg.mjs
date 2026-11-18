@@ -1,5 +1,10 @@
 import path from 'path'
 import get from 'lodash-es/get.js'
+import cloneDeep from 'lodash-es/cloneDeep.js'
+import buildBaseUnitNotional from 'w-trade-backtest/src/buildBaseUnitNotional.mjs'
+import cdbl from 'wsemi/src/cdbl.mjs'
+import cint from 'wsemi/src/cint.mjs'
+import isenum from 'wsemi/src/isenum.mjs'
 import isestr from 'wsemi/src/isestr.mjs'
 import isbol from 'wsemi/src/isbol.mjs'
 import isnum from 'wsemi/src/isnum.mjs'
@@ -85,12 +90,71 @@ let intervalSec = (interval, fallback = null) => {
 
 
 /**
+ * 檢測基礎單位選項並把其數字字串轉為數值(不要求asOf與source; normalizeUnit與策略庫重算比對檔內口徑共用)
+ *
+ * 先複製一次(unit各欄只讀取一次，其後檢測與轉換皆用此副本，檢測之值即使用之值)，以w-trade-backtest之buildBaseUnitNotional檢測(與回測各路徑檢測settings.unit者同一函數：須為一般物件，rule三欄與buffer、units為有效數字或數字字串，並以價格1試算一次)，通過後把rule三欄與buffer轉為數值、units轉為整數，buffer與units為null或未給時補預設0.1與1(不寫入null)，其餘欄位原樣
+ * 無效時throw(訊息為buildBaseUnitNotional所拋，以`invalid ${name}`起頭，不含輸入值)
+ *
+ * @function
+ * @param {Object} unit 輸入基礎單位選項物件{rule,buffer,units}
+ * @param {String} [name='unit'] 輸入錯誤訊息所用之選項名稱字串，預設'unit'
+ * @returns {Object} 回傳副本{rule,buffer,units}，數值皆為Number
+ * @example
+ *
+ * let u = toNumericUnit({ rule: { stepSize: '0.001', minQty: '0.001', minNotional: '20' }, units: '2' })
+ * console.log(u.rule.stepSize, u.buffer, u.units)
+ * // => 0.001 0.1 2
+ *
+ */
+let toNumericUnit = (unit, name = 'unit') => {
+    let u = cloneDeep(unit)
+    buildBaseUnitNotional(u, name)
+    u.rule.stepSize = cdbl(u.rule.stepSize)
+    u.rule.minQty = cdbl(u.rule.minQty)
+    u.rule.minNotional = cdbl(u.rule.minNotional)
+    u.buffer = (u.buffer === undefined || u.buffer === null) ? 0.1 : cdbl(u.buffer)
+    u.units = (u.units === undefined || u.units === null) ? 1 : cint(u.units)
+    return u
+}
+
+
+/**
+ * 正規化基礎單位選項(下單之基礎單位 = 交易所之最小可下單數量)
+ *
+ * unit為一般物件{rule,buffer,units}：rule為交易規則{stepSize,minQty,minNotional}(各為有效數字或數字字串且大於0)，且須另記asOf(查得之時刻)與source(來源)兩個非空字串；buffer為非負數、null或未給為0.1，units為正整數、null或未給為1(介面同w-trade-backtest之settings.unit，>=1.1.40)
+ * 有效性由w-trade-backtest之buildBaseUnitNotional判定(與回測各路徑檢測settings.unit者同一函數；須為一般物件，並以價格1試算一次)，不另加型別限制；通過後回傳之副本把rule三欄與buffer之數字字串轉為數值、units轉為整數(落地皆為數值，轉換前後buildBaseUnitNotional之key相同)，buffer與units為null或未給時補預設(不寫入null；策略檔因此記錄實際採用之緩衝與單位數)，asOf、source與其他欄位原樣複製，不改呼叫端之物件
+ * unit非物件、rule非物件、asOf或source非非空字串、或buildBaseUnitNotional拋錯時throw(訊息為`invalid ${name}...: must be ...`，以`invalid ${name}`起頭，不含輸入值)
+ *
+ * @function
+ * @param {Object} unit 輸入基礎單位選項物件{rule,buffer,units}
+ * @param {String} [name='unit'] 輸入錯誤訊息所用之選項名稱字串，預設'unit'
+ * @returns {Object} 回傳正規化後之基礎單位選項副本{rule,buffer,units}，數值皆為Number
+ * @example
+ *
+ * let u = normalizeUnit({ rule: { stepSize: '0.001', minQty: 0.001, minNotional: 20, asOf: '2026-01-01T00:00:00', source: 'exchangeInfo' } })
+ * console.log(u.buffer, u.units, u.rule.stepSize, u.rule.asOf)
+ * // => 0.1 1 0.001 2026-01-01T00:00:00
+ *
+ */
+let normalizeUnit = (unit, name = 'unit') => {
+    let u = toNumericUnit(unit, name)
+    for (let k of ['asOf', 'source']) {
+        if (!isestr(u.rule[k])) {
+            throw new Error(`invalid ${name}.rule.${k}: must be a non-empty string`)
+        }
+    }
+    return u
+}
+
+
+/**
  * 正規化管線設定
  *
  * 必填: root(工作根資料夾)、name(幣種或標的名稱, 用於組序列key與策略識別)、symbol(交易對)、interval(K線週期)
  * source為'binance'(預設, 由幣安抓取現貨K線與溢價指數K線)或物件{price,index}(外部數據, 各為K線陣列或回傳K線陣列之async函數, 供股價等非幣安標的)
  * useIndex預設true(須同時有price與index), 外部數據未給index時自動為false; 為false時基於index之參數將於buildParams被剔除
  * train為訓練期{timeStart,timeEnd[,timeEndByMode:{long,short}]}, 為最佳化求解與普測之評估區間; 未給時僅能執行數據與參數階段
+ * settings為策略之資金與手續費(預設{uIni:1000,uTrade:1,rFee:0.0005}); 可另給unit(基礎單位{rule,buffer,units}, 見normalizeUnit; rule須記asOf與source), 給予時普測、求解與策略庫重算之每單名義依基礎單位, uIni為研究用本金(須為有效正數, 數字或數字字串, 通過即轉為數值; 只作策略庫重算統計超過者之基準, 只列不判, 普測與求解不以之判定), unit內之數字字串亦轉為數值後落地, unit隨策略檔落地; 未給unit時行為不變(uIni等設定原樣)
  * cfg之鍵只認CFG_KEYS，打錯之鍵拋錯(靜默接受會使正名鍵維持預設而無人察覺)
  *
  * @function
@@ -228,6 +292,15 @@ let normalizeCfg = (cfg = {}) => {
         ...(iseobj(get(cfg, 'settings')) ? cfg.settings : {}),
     }
 
+    //settings.unit, 基礎單位(下單之基礎單位 = 交易所之最小可下單數量), 給予時正規化(數字字串轉為數值)並檢查研究用本金uIni(有效正數, 數字或數字字串, 通過即轉為數值; 檢測之值即使用之值); 未給或為null時視同未給(原樣保留, 各階段以是否為物件判定)
+    if (settings.unit !== undefined && settings.unit !== null) {
+        settings.unit = normalizeUnit(settings.unit, 'cfg.settings.unit')
+        if (!isenum(settings.uIni, { gt: 0 })) {
+            throw new Error(`invalid cfg.settings.uIni: must be a positive number`)
+        }
+        settings.uIni = cdbl(settings.uIni)
+    }
+
     return {
         root,
         name,
@@ -270,5 +343,5 @@ let serializableCfg = (cfg) => {
 }
 
 
-export { INTERVALS, FDS, CFG_KEYS, DERIVED_KEYS, intervalSec, normalizeCfg, serializableCfg }
+export { INTERVALS, FDS, CFG_KEYS, DERIVED_KEYS, intervalSec, toNumericUnit, normalizeUnit, normalizeCfg, serializableCfg }
 export default normalizeCfg

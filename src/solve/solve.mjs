@@ -72,7 +72,7 @@ let SOLVE_OPT_KEYS = Object.freeze([
  * @param {Function} [opt.onProgress] 輸入每輪結束之狀態回呼(status)
  * @param {Function} [opt.onError] 輸入worker錯誤回呼(err)
  * @param {Boolean} [opt.useShowLog=false] 輸入是否顯示求解過程log
- * @returns {Object} 回傳求解器{start,stop,status}，start()回傳Promise(resolve為最終status)，stop()要求停止，status()回傳目前狀態{state,nRounds,nCandidates,nStrategies,nStrategiesStart,nNew,elapsedMs,workers,engine,fdStrategies,stopReason,errors}
+ * @returns {Object} 回傳求解器{start,stop,status}，start()回傳Promise(resolve為最終status)，stop()要求停止，status()回傳目前狀態{state,nRounds,nCandidates,nStrategies,nStrategiesStart,nNew,elapsedMs,workers,engine,fdStrategies,stopReason,errors}；cfg.settings含unit(基礎單位)時以其與cfg.settings.uIni求解(見runRound)
  * @example
  * need test in nodejs.
  *

@@ -1,18 +1,23 @@
-# 現況(w-trade-strategy)— 2026-11-08
+# 現況(w-trade-strategy)— 2026-11-18
 
 > 只記現況,不寫過程(過程在 `../exp/`)。接續工作先讀本檔;完成一項功能或結束一輪工作即更新。路徑為套件根相對路徑。
 
 ## 身分與位置
 
-- 套件名 `w-trade-strategy` 1.0.0(**尚未發布**;由使用端於 2026-11-08 抽提〔Gitea #105〕,同日完成整理與核對〔依賴、按需引入、JSDoc、編譯、打包、去識別〕,待發布流程升版首發)。入口 `src/WTradeStrategy.mjs`(預設匯出聚合物件;各模組可深層匯入)、總組裝 `createPipeline`(別名 `createTradeStrategy`);`main` 指 `dist/w-trade-strategy.umd.js`(發布流程產製;本機已實編並以 `require` 載入驗證,見〈最近驗證〉)。
-- 依賴:`wsemi` ^1.9.52、`w-data-csv` ^1.0.48、`w-data-tdprovide` ^1.0.32、`w-data-trade` ^1.0.34(週期換算 `opt.barsPerDay`)、`w-dwdata-binance` ^1.0.44、`w-trade-backtest` ^1.1.27、`w-trade-solve` ^2.0.26;devDependencies `w-package-tools` ^1.1.23(以上皆為 Verdaccio 現行最新)。`dayjs`、`lodash-es` 由 wsemi 帶入。
-- 佈局(依自有套件範本):`src/`(根層 3 檔 + `cache/ data/ params/ solve/ sweep/ util/`,共 27 檔,含 3 個 worker entry)、`test/`(`unit-*.test.mjs` 6 檔 45 案 + `tools/` 3 檔)、`toolg/` 六支、`g.mjs`(離線範例)、`sgud/` 四檔、根目錄範本檔(`.editorconfig`、`.eslintignore`、`.eslintrc.js`、`.jsdoc`、`babel.config.js`、`SECURITY.md`、`LICENSE`、`script.txt`、`.gitignore`)。`dist/`、`docs/` 為發布流程之產製物(`script.txt` 列序)。
-- 深層路徑穩定契約(使用端以此取用,不得改名搬動):`src/WTradeStrategy.mjs`、`src/createPipeline.mjs`、`src/cfg.mjs`、`src/params/catalog.mjs`、`src/params/keysCloseOnly.mjs`、三個 worker entry(`src/sweep/sweepSingle_worker.mjs`、`src/sweep/sweepPairs_worker.mjs`、`src/solve/solveWorker.mjs`)、`test/tools/synthKit.mjs`。
+- 套件名 `w-trade-strategy`(已發布至 1.0.16;由使用端於 2026-11-08 抽提〔Gitea #105〕;基礎單位與策略庫重算〔Gitea #176〕之改動**尚未發布**,待發布流程升版;`dist/`、`docs/` 須於發布流程重編)。入口 `src/WTradeStrategy.mjs`(預設匯出聚合物件;各模組可深層匯入)、總組裝 `createPipeline`(別名 `createTradeStrategy`);`main` 指 `dist/w-trade-strategy.umd.js`(發布流程產製;本機已實編並以 `require` 載入驗證,見〈最近驗證〉)。
+- 依賴:`wsemi` ^1.9.65、`w-data-csv` ^1.0.60、`w-data-tdprovide` ^1.0.44、`w-data-trade` ^1.0.47(週期換算 `opt.barsPerDay`)、`w-dwdata-binance` ^1.0.56、`w-trade-backtest` ^1.1.40(下限不得降低:`src/cfg.mjs` 頂層靜態匯入其 `buildBaseUnitNotional.mjs`,低於 1.1.40 整個套件載入失敗)、`w-trade-solve` ^2.0.40(`estimKeys` 之 `opt.uIni`／`opt.unit`;2.0.40 起);devDependencies `w-package-tools` ^1.1.28。`dayjs`、`lodash-es` 由 wsemi 帶入。
+- 佈局(依自有套件範本):`src/`(根層 3 檔 + `cache/ data/ params/ solve/ sweep/ util/ recompute/`,共 32 檔,含 4 個 worker entry)、`test/`(`unit-*.test.mjs` 8 檔 + `tools/` 6 檔〔`synthKit`、`tmpdir`、`jsdocExamples`、`lockChild`、`abPipeline`、`lockRaceProbe`〕)、`toolg/` 六支、`g.mjs`(離線範例)、`sgud/` 四檔、根目錄範本檔(`.editorconfig`、`.eslintignore`、`.eslintrc.js`、`.jsdoc`、`babel.config.js`、`SECURITY.md`、`LICENSE`、`script.txt`、`.gitignore`)。`dist/`、`docs/` 為發布流程之產製物(`script.txt` 列序)。
+- 深層路徑穩定契約(使用端以此取用,不得改名搬動):`src/WTradeStrategy.mjs`、`src/createPipeline.mjs`、`src/cfg.mjs`、`src/params/catalog.mjs`、`src/params/keysCloseOnly.mjs`、四個 worker entry(`src/sweep/sweepSingle_worker.mjs`、`src/sweep/sweepPairs_worker.mjs`、`src/solve/solveWorker.mjs`、`src/recompute/recomputeStrategies_worker.mjs`)、`test/tools/synthKit.mjs`。
 
 ## 最近驗證
 
 | 日期 | 項 | 結果 |
 |---|---|---|
+| 2026-11-18 | 全套 `npm test`(`--no-parallel`,經測試鎖;`w-trade-solve` 2.0.40、`w-trade-backtest` 1.1.40、`wsemi` 1.9.65) | 126 案全綠(原 56 + `unit-baseUnit` 19 + `unit-recompute` 51;約 2.5 分鐘);eslint(`src`、`test`、`toolg`)0 問題 |
+| 2026-11-18 | 基礎單位與策略庫重算之修前紅 | 1.0.16 原碼:`unit-baseUnit` 17 紅、2 綠(皆為未給 `unit` 之案),`unit-recompute` 因新模組不存在而不載入;提案原碼(未經本輪修改):70 案中 18 紅(數字字串轉數值、V19／V20 訊息、鎖檔接手之保護檔) |
+| 2026-11-18 | 變異(於副本逐項改壞後跑對應測試檔) | 82 項:紅 81、存活 1(L04 先建空檔再寫內容之非原子建立,與提案同:兩項防線重疊而不可觀察,見 TS-19〈已知限制〉④);含 S 13 項、L 11 項、J 8 項與各裁定之處;逐項還原並逐位核對 |
+| 2026-11-18 | 未給 `settings.unit` 時之前後對拍(`test/tools/abPipeline.mjs`;固定亂數種子) | 6 組 `settings`(含 `unit: null`、`uIni` 數字字串)× 2 組合成數據 = 12 情境,各跑 `normalizeCfg`、`buildOhlc`、`buildParams`、`buildCache`、`sweepSingle`、`sweepPairs`、`solve`(加速核心 3 輪、完整版 1 輪)之回傳、事件、`status` 與全部策略檔(684 檔):同一份 src 連跑兩次 0 處不同;1.0.16 原碼對本版 0 處不同;植入一處差異(求解恆傳 `uIni`／`unit`)即 23 處不同 |
+| 2026-11-18 | 鎖檔壓力探測(`test/tools/lockRaceProbe.mjs`;6 個子行程同時接手同一殘留鎖) | 60 次:恰一個持有者 60 次、`staleLock` 恆 true;提案之接手寫法(取走→放回)同法 60 次有 1 次兩個持有者、3 次取得者 `staleLock` 為 false |
 | 2026-11-08 | 全套 `npm test`(`--no-parallel`,經測試鎖) | 56 案全綠(含資源閘 `gate` 11 案;約 2 分鐘);測試所用 worker 數固定(`takeLimit: 2`、`workers: 0／1／2`) |
 | 2026-11-08 | 資源閘與起跑前檢查之穩定度與變異 | `gate` 群組未改碼連跑 5 次皆 11/11;變異 10 組(拿掉 in-process 閘後檢查、拿掉 worker 閘後 `maybeStop`、拿掉 `workers > 0` 起跑前檢查、末輪後仍過閘、停止後仍過閘、in-process 不 await 閘、閘後只設旗標不送 `stop`、worker 不等第 1 輪放行、`onError` 拋錯不忽略、`workers > 0` 不等閘)皆有對應案轉紅 |
 | 2026-11-08 | eslint(`src/solve/solve.mjs`、`src/solve/solveWorker.mjs`、`test/unit-solve.test.mjs`)、jsdoc | 0 error;jsdoc 無警告 |
@@ -34,6 +39,8 @@
 | 最佳化求解(fast/full、事件、停止條件〔起跑前亦檢查,`workers > 0` 同〕、workers 放行握手〔`ready` 與每輪後皆等放行〕、`SOLVE_OPT_KEYS`) | 落地 | TS-15;`unit-solve` |
 | 求解資源閘 `opt.gate`(每輪起跑前由主程序 `await`;閘拋錯記 errors 並放行;閘後再查停止條件;停止時全體 worker 收 `stop`) | 落地(未發布;待發布流程升版) | TS-16;`unit-solve`〈gate〉11 案 |
 | 發布面守門(package.json、依賴對帳、dist 打包寫法、打包清單、g.mjs、JSDoc 範例實跑、通用機敏樣式) | 落地 | TS-01~06;`unit-package` |
+| 基礎單位 `settings.unit`(普測與求解之每單名義依交易所最小可下單數量、策略檔記錄交易規則與緩衝;單一策略不設持倉門檻) | 落地(未發布;數字字串於檢測後轉為數值落地;`w-trade-backtest` ≥ 1.1.40、`w-trade-solve` ≥ 2.0.40 已發布且下限已升) | TS-17/18;`unit-baseUnit` |
+| 策略庫重算 `recomputeStrategies`(忠實重放先行、`verify`／`dry`／`write`、寫至另一夾〔不提供原地寫回;別名與上下層皆拒〕、續跑〔輸出檔雜湊核對〕、鎖檔〔保護檔接手〕、統計、跨門檻與無門檻清單、超過 `uIni` 者之隻數與最大者;選項之數字字串轉數值) | 落地(未發布) | TS-19;`unit-recompute` |
 
 ## 待辦與已知限制
 
@@ -45,3 +52,6 @@
 - **資源閘之已知限制**:①`stop()` 隨時生效,但 `shouldStop`／`maxTimeMs`／`maxStrategies` 只在輪次結束與閘 resolve 後判定,**閘永不 resolve 時這三項不會被判定**(閘內宜自行檢查停止;若要改為閘等待期間輪詢,須加計時器,屬另案);②停止後閘之 promise 不被取消(其後才 resolve 或拋錯時不影響已結算之 `start()`);③暫停不釋放 worker 已載入之記憶體(只能擋增量);④`setWorkers` 動態增減 worker 未做(另案)。
 - `src/util/parfor.mjs` 抽自 w-package-tools 之 `src/parfor.mjs`(開發工具套件不可作為執行期依賴);若日後有自有套件提供執行期可用之 `parfor`,改為引用並移除本檔(須另案請自有套件主控評估)。
 - `onRound` 事件之 `elapsedMs` 為求解器累計耗時(`status()` 覆寫該輪耗時);JSDoc 與 README 已註明,行為未改。
+- 基礎單位之發布前提:`src/cfg.mjs` 頂層靜態匯入 `w-trade-backtest/src/buildBaseUnitNotional.mjs`(1.1.40 起提供),`package.json` 之 `w-trade-backtest` 最低版須為 ^1.1.40,否則整個套件(含未給 `unit` 之用法)載入失敗;`w-trade-solve` 最低版 ^2.0.40(`estimKeys` 之 `opt.uIni`／`opt.unit`,其數字字串於檢測後轉為數值;低於此版時給 `unit` 之求解會落地不含 `unit` 之策略)。`w-trade-solve` 之 `opt.unit` 為動態載入,未給 `unit` 之路徑不依賴回測套件之新檔。`dist/` 須於發布流程重編。
+- 策略庫重算與基礎單位之已知限制(逐項見規則帳本 TS-19〈已知限制〉):單檔重放無逾時;寫出不做 fsync;8.3 短名與 `\\?\` 前綴別名未測;鎖檔之 PID 被重用時誤判為使用中、當機於保護檔存在期間而遺留者使其後之接手被拒(皆偏安全,須手動刪);普測之 raw 策略不在重算範圍;跨入庫門檻者只列清單不處置;`r8` 無法端到端觸發;每 worker 載入全部序列;求解不讀 `cfg.settings` 之 `uTrade`／`rFee`;檔內 `settings.uIni` 為數字字串者(回測套件不轉型)重放即 `mismatch`。
+- 未給 `settings.unit` 時各階段之行為、回傳、事件與策略檔須逐位不變(TS-17);改管線前後以 `test/tools/abPipeline.mjs` 對拍(見 `../proc/process.md`)。

@@ -17,8 +17,8 @@ let fdTar = './dist'
 //   lodash-es一律以單函數路徑(lodash-es/<函數>.js)引用, 屬純函式之ESM小檔, 打包進dist(與自有套件對lodash-es/*之處理一致)
 //4. globals右側為引入後的名稱, 不能包含小數點「.」
 //5. runin須為nodejs: 本套件僅能於nodejs執行(fs、worker_threads), 未給時rollupFiles預設browser, 會以browser欄位解析被打包之相依並警告依賴node內建模組
-//6. dist之限制(行為不改, 僅記錄): 以import.meta.url相對位置取用之worker entry(src/sweep/sweepSingle_worker.mjs、src/sweep/sweepPairs_worker.mjs、src/solve/solveWorker.mjs)
-//   不在import圖內, 故不隨dist打包; 需用sweepSingle/sweepPairs或solve之workers>0者請以ESM深層路徑取用(w-trade-strategy/src/WTradeStrategy.mjs, 套件不設exports)
+//6. dist之限制(行為不改, 僅記錄): 以import.meta.url相對位置取用之worker entry(src/sweep/sweepSingle_worker.mjs、src/sweep/sweepPairs_worker.mjs、src/solve/solveWorker.mjs、src/recompute/recomputeStrategies_worker.mjs)
+//   不在import圖內, 故不隨dist打包; 需用sweepSingle/sweepPairs、solve之workers>0或recomputeStrategies者請以ESM深層路徑取用(w-trade-strategy/src/WTradeStrategy.mjs, 套件不設exports)
 //盤點方式: 自src/WTradeStrategy.mjs靜態追蹤import圖(含沿node_modules內自有套件與第三方套件之引用, 含export … from與require), 取得全部裸import後逐一歸類;
 //   新增依賴或自有套件升版後須重盤, 並以require載入dist實跑buildOhlc、buildParams、buildCache驗證(列為external者須為CJS且不依賴ESM專用套件)
 

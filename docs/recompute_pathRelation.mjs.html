@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>recompute/pathRelation.mjs - Documentation</title>
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#CATALOG">CATALOG</a></li><li><a href="global.html#CFG_KEYS">CFG_KEYS</a></li><li><a href="global.html#COMPS_ALL">COMPS_ALL</a></li><li><a href="global.html#DERIVED_KEYS">DERIVED_KEYS</a></li><li><a href="global.html#ENDPOINT_INDEX">ENDPOINT_INDEX</a></li><li><a href="global.html#ENDPOINT_PRICE">ENDPOINT_PRICE</a></li><li><a href="global.html#EVENT_KEYS">EVENT_KEYS</a></li><li><a href="global.html#FDS">FDS</a></li><li><a href="global.html#HEADS_INDEX">HEADS_INDEX</a></li><li><a href="global.html#HEADS_PRICE">HEADS_PRICE</a></li><li><a href="global.html#INTERVALS">INTERVALS</a></li><li><a href="global.html#INVARIANT_KEYS">INVARIANT_KEYS</a></li><li><a href="global.html#LOCK_FRESH_MS">LOCK_FRESH_MS</a></li><li><a href="global.html#LOCK_NAME">LOCK_NAME</a></li><li><a href="global.html#RECOMPUTE_FAIL_STATUSES">RECOMPUTE_FAIL_STATUSES</a></li><li><a href="global.html#RECOMPUTE_MODES">RECOMPUTE_MODES</a></li><li><a href="global.html#SOLVE_OPT_KEYS">SOLVE_OPT_KEYS</a></li><li><a href="global.html#TPS_DEFAULT">TPS_DEFAULT</a></li><li><a href="global.html#WTradeStrategy">WTradeStrategy</a></li><li><a href="global.html#acquireRecomputeLock">acquireRecomputeLock</a></li><li><a href="global.html#allowedComps">allowedComps</a></li><li><a href="global.html#assmDefaultOf">assmDefaultOf</a></li><li><a href="global.html#binomTailGE">binomTailGE</a></li><li><a href="global.html#buildBaseBars">buildBaseBars</a></li><li><a href="global.html#buildCache">buildCache</a></li><li><a href="global.html#buildKp">buildKp</a></li><li><a href="global.html#buildOhlc">buildOhlc</a></li><li><a href="global.html#buildP2Data">buildP2Data</a></li><li><a href="global.html#buildParams">buildParams</a></li><li><a href="global.html#calcOrdersStability">calcOrdersStability</a></li><li><a href="global.html#canonOf">canonOf</a></li><li><a href="global.html#checkInvariant">checkInvariant</a></li><li><a href="global.html#classifyKeys">classifyKeys</a></li><li><a href="global.html#cleanFolder">cleanFolder</a></li><li><a href="global.html#compsCloseOnly">compsCloseOnly</a></li><li><a href="global.html#countJson">countJson</a></li><li><a href="global.html#createCore">createCore</a></li><li><a href="global.html#createPipeline">createPipeline</a></li><li><a href="global.html#createSolver">createSolver</a></li><li><a href="global.html#dedupStrategies">dedupStrategies</a></li><li><a href="global.html#diffSummary">diffSummary</a></li><li><a href="global.html#ensureFolder">ensureFolder</a></li><li><a href="global.html#eqYrOf">eqYrOf</a></li><li><a href="global.html#fetchBinance">fetchBinance</a></li><li><a href="global.html#fieldsOf">fieldsOf</a></li><li><a href="global.html#filterKeysCloseOnly">filterKeysCloseOnly</a></li><li><a href="global.html#fpCacheOf">fpCacheOf</a></li><li><a href="global.html#funAddKeysInVbs">funAddKeysInVbs</a></li><li><a href="global.html#idOf">idOf</a></li><li><a href="global.html#intervalSec">intervalSec</a></li><li><a href="global.html#isBarComplete">isBarComplete</a></li><li><a href="global.html#isKeyCloseOnly">isKeyCloseOnly</a></li><li><a href="global.html#isWithin">isWithin</a></li><li><a href="global.html#listJsonKeys">listJsonKeys</a></li><li><a href="global.html#makeFastEngine">makeFastEngine</a></li><li><a href="global.html#makeOtt">makeOtt</a></li><li><a href="global.html#nmKeyOf">nmKeyOf</a></li><li><a href="global.html#normalizeCfg">normalizeCfg</a></li><li><a href="global.html#normalizeExternal">normalizeExternal</a></li><li><a href="global.html#normalizeUnit">normalizeUnit</a></li><li><a href="global.html#nowIso">nowIso</a></li><li><a href="global.html#parfor">parfor</a></li><li><a href="global.html#parseComps">parseComps</a></li><li><a href="global.html#prepareSolve">prepareSolve</a></li><li><a href="global.html#quantilesOf">quantilesOf</a></li><li><a href="global.html#r">r</a></li><li><a href="global.html#readCsvFolder">readCsvFolder</a></li><li><a href="global.html#readF1Factors">readF1Factors</a></li><li><a href="global.html#readJsonOr">readJsonOr</a></li><li><a href="global.html#recomputeStrategies">recomputeStrategies</a></li><li><a href="global.html#relationOf">relationOf</a></li><li><a href="global.html#releaseRecomputeLock">releaseRecomputeLock</a></li><li><a href="global.html#resolveNmPeriod">resolveNmPeriod</a></li><li><a href="global.html#runRound">runRound</a></li><li><a href="global.html#serializableCfg">serializableCfg</a></li><li><a href="global.html#sliceByPeriod">sliceByPeriod</a></li><li><a href="global.html#solve">solve</a></li><li><a href="global.html#sweepCfgOf">sweepCfgOf</a></li><li><a href="global.html#sweepPairs">sweepPairs</a></li><li><a href="global.html#sweepSingle">sweepSingle</a></li><li><a href="global.html#toNumericUnit">toNumericUnit</a></li><li><a href="global.html#validateDef">validateDef</a></li><li><a href="global.html#writeJson">writeJson</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">recompute/pathRelation.mjs</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import fs from 'fs'
+import path from 'path'
+
+
+//DEPS, 預設之檔案系統操作(測試可逐項替換以驗各判定法之分支)
+let DEPS = {
+    exists: (p) => fs.existsSync(p),
+    realpath: (p) => fs.realpathSync.native(p),
+    stat: (p) => fs.statSync(p, { bigint: true }),
+    platform: process.platform,
+}
+
+
+/**
+ * 資料夾之正規路徑: 取最近之既存上層以fs.realpathSync.native解析(目錄連結、8.3短名、實際大小寫)再接其餘段, win32轉小寫(不分大小寫比較)
+ *
+ * 實體路徑取不到(realpath拋錯)時throw, 不退回字串比較(無法確認兩夾之關係即不執行)
+ *
+ * @function
+ * @param {String} p 輸入資料夾路徑字串(相對路徑相對於process.cwd())
+ * @param {Object} [deps={}] 輸入可替換之操作{exists,realpath,stat,platform}(只供測試注入)，預設{}
+ * @returns {String} 回傳正規路徑字串
+ * @example
+ *
+ * console.log(canonOf('./a/../b') === canonOf('./b'))
+ * // => true
+ *
+ */
+let canonOf = (p, deps = {}) => {
+    let d = { ...DEPS, ...deps }
+    let cur = path.resolve(p)
+    let rest = []
+    while (!d.exists(cur)) {
+        let up = path.dirname(cur)
+        if (up === cur) {
+            break
+        }
+        rest.unshift(path.basename(cur))
+        cur = up
+    }
+    let real = cur
+    if (d.exists(cur)) {
+        try {
+            real = d.realpath(cur)
+        }
+        catch (err) {
+            throw new Error(`無法取得資料夾之實體路徑(${(err &amp;&amp; err.code) || 'unknown'}), 無法確認與原策略庫之關係, 不執行重算`) //只帶錯誤碼(Node原生訊息含路徑)
+        }
+    }
+    let full = path.join(real, ...rest)
+    return d.platform === 'win32' ? full.toLowerCase() : full
+}
+
+
+/**
+ * 既存資料夾之本體識別(dev + ino)
+ *
+ * 不存在、無法stat或檔案識別為0(部分網路分享與虛擬磁碟)時回傳null(不以識別比對, 只用正規路徑)
+ *
+ * @function
+ * @param {String} p 輸入路徑字串
+ * @param {Object} [deps={}] 輸入可替換之操作(只供測試注入)，預設{}
+ * @returns {String|null} 回傳`${dev}:${ino}`或null
+ * @example
+ *
+ * console.log(idOf('./not-exist-folder-x'))
+ * // => null
+ *
+ */
+let idOf = (p, deps = {}) => {
+    let d = { ...DEPS, ...deps }
+    let s = null
+    try {
+        s = d.stat(p)
+    }
+    catch (err) {
+        return null
+    }
+    if (!s || s.ino === undefined || s.ino === null || BigInt(s.ino) === 0n) {
+        return null
+    }
+    return `${s.dev}:${s.ino}`
+}
+
+
+//idsUpOf, 自身與各既存上層之本體識別
+let idsUpOf = (p, deps) => {
+    let out = []
+    let cur = path.resolve(p)
+    for (;;) {
+        let id = idOf(cur, deps)
+        if (id) {
+            out.push(id)
+        }
+        let up = path.dirname(cur)
+        if (up === cur) {
+            break
+        }
+        cur = up
+    }
+    return out
+}
+
+
+/**
+ * 正規路徑child是否等於或位於parent之內(以路徑分隔為界)
+ *
+ * @function
+ * @param {String} child 輸入正規路徑字串
+ * @param {String} parent 輸入正規路徑字串
+ * @returns {Boolean} 回傳布林值
+ * @example
+ *
+ * console.log(isWithin('/a/b/c', '/a/b'), isWithin('/a/b_bu', '/a/b'))
+ * // => true false
+ *
+ */
+let isWithin = (child, parent) => {
+    let rel = path.relative(parent, child)
+    return rel === '' || (rel !== '..' &amp;&amp; !rel.startsWith(`..${path.sep}`) &amp;&amp; !path.isAbsolute(rel))
+}
+
+
+/**
+ * 兩資料夾之關係: 以正規路徑(canonOf)與本體識別(idOf, 含各上層)兩法判定, 任一法成立即採
+ *
+ * @function
+ * @param {String} a 輸入資料夾路徑字串
+ * @param {String} b 輸入資料夾路徑字串
+ * @param {Object} [deps={}] 輸入可替換之操作(只供測試注入)，預設{}
+ * @returns {String|null} 回傳'same'(同一夾, 含別名)、'aInB'(a位於b之內)、'bInA'(b位於a之內)或null(無包含關係)
+ * @example
+ *
+ * console.log(relationOf('./x/y', './x'), relationOf('./x', './x_bu'))
+ * // => aInB null
+ *
+ */
+let relationOf = (a, b, deps = {}) => {
+    let ca = canonOf(a, deps)
+    let cb = canonOf(b, deps)
+    let ia = idOf(a, deps)
+    let ib = idOf(b, deps)
+    if (ca === cb || (ia !== null &amp;&amp; ia === ib)) {
+        return 'same'
+    }
+    if (isWithin(ca, cb) || (ib !== null &amp;&amp; idsUpOf(a, deps).includes(ib))) {
+        return 'aInB'
+    }
+    if (isWithin(cb, ca) || (ia !== null &amp;&amp; idsUpOf(b, deps).includes(ia))) {
+        return 'bInA'
+    }
+    return null
+}
+
+
+export { canonOf, idOf, isWithin, relationOf }
+export default relationOf
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Wed Nov 18 2026 09:21:43 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+
+
+</body>
+</html>

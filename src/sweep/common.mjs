@@ -4,6 +4,7 @@ import round from 'lodash-es/round.js'
 import rang from 'wsemi/src/rang.mjs'
 import isearr from 'wsemi/src/isearr.mjs'
 import iseobj from 'wsemi/src/iseobj.mjs'
+import isobj from 'wsemi/src/isobj.mjs'
 import isestr from 'wsemi/src/isestr.mjs'
 import fsIsFile from 'wsemi/src/fsIsFile.mjs'
 import { makeOtt } from '../util/ott.mjs'
@@ -51,7 +52,7 @@ let assmDefaultOf = (barsPerDay) => ({
  * @param {Array} [opt.thsLong] 輸入做多門檻陣列，預設0~2切10段
  * @param {Array} [opt.thsShort] 輸入做空門檻陣列，預設-2~0切10段
  * @param {Object} [opt.assm] 輸入穩定度gate門檻之覆寫物件
- * @returns {Object} 回傳普測設定物件
+ * @returns {Object} 回傳普測設定物件，cfg.settings含unit(基礎單位)時另含unit鍵
  * @example
  * need test in nodejs.
  *
@@ -104,6 +105,7 @@ let sweepCfgOf = (cfg, opt = {}) => {
         uIni: cfg.settings.uIni,
         uTrade: cfg.settings.uTrade,
         rFee: cfg.settings.rFee,
+        ...(isobj(cfg.settings.unit) ? { unit: cfg.settings.unit } : {}), //基礎單位(給cfg.settings.unit時才有此鍵)
         assm: { ...assmDefaultOf(barsPerDay), ...(iseobj(opt.assm) ? opt.assm : {}) },
         fpCache,
         barsPerDay,

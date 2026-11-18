@@ -19,7 +19,7 @@ import { makeOtt } from '../util/ott.mjs'
  *
  * @function
  * @param {Object} init 輸入{sc(sweepCfgOf之設定),p2data(buildP2Data之共享資料)}
- * @returns {Function} 回傳async函數core(job) => {strategies}，job為{mode,i,numTradeFinMin,eqYrMin,useAssm,withMask}
+ * @returns {Function} 回傳async函數core(job) => {strategies}，job為{mode,i,numTradeFinMin,eqYrMin,useAssm,withMask}；sc含unit(基礎單位)時每單名義依基礎單位、策略之settings另含unit(最大持倉名義不設門檻，只隨summary落地)
  * @example
  * need test in nodejs.
  *
@@ -47,6 +47,9 @@ let createCore = (init) => {
     }
 
     let optOrders = { uTrade: sc.uTrade, uIni: sc.uIni, rFee: sc.rFee, maxExitTime: sc.exitCut, skipSort: true }
+    if (sc.unit) {
+        optOrders.unit = sc.unit //基礎單位: 每單名義依進場價與交易規則
+    }
 
     let intersectBits = (fireA, fireB) => {
         let r = []
@@ -88,6 +91,10 @@ let createCore = (init) => {
             { key: A.key, sym: A.sym, th: A.th, opr },
             { key: B.key, sym: B.sym, th: B.th, opr },
         ]
+        let settings = { uIni: sc.uIni, uTrade: sc.uTrade, rTakeProfit: r, rStopLoss: r, rFee: sc.rFee }
+        if (sc.unit) {
+            settings.unit = sc.unit //交易規則與緩衝隨策略檔落地
+        }
         return {
             tid: genTid(sc.name, sc.interval, mode, [A.key, B.key]),
             sid: genSid(sc.name, sc.interval, mode, conds),
@@ -97,7 +104,7 @@ let createCore = (init) => {
             keyOhlc: sc.keyOhlc,
             mode,
             conds,
-            settings: { uIni: sc.uIni, uTrade: sc.uTrade, rTakeProfit: r, rStopLoss: r, rFee: sc.rFee },
+            settings,
             summary,
         }
     }

@@ -33,7 +33,7 @@ import { ensureFolder, cleanFolder, writeJson } from '../util/fsx.mjs'
  * @param {Number} [opt.dedupOverlap=null] 輸入入庫去重門檻(0~1，進場Jaccard>此值視同質只留高分)，null為關閉
  * @param {Boolean} [opt.cleanFdOut=true] 輸入開跑前是否清空輸出資料夾
  * @param {Function} [opt.onProgress] 輸入進度回呼({i,n,nOut,nBuf,elapsedMs})
- * @returns {Promise} 回傳Promise，resolve為{nJobs,nOut,nDrop,fdTar,elapsedMs}
+ * @returns {Promise} 回傳Promise，resolve為{nJobs,nOut,nDrop,fdTar,elapsedMs}；cfg.settings含unit(基礎單位)時每單名義依基礎單位、策略檔之settings記錄unit(單一策略之最大持倉名義不設門檻，只隨summary落地)
  * @example
  * need test in nodejs.
  *

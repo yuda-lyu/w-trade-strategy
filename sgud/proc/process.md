@@ -10,13 +10,19 @@
 - 外部數據(股價):`source: { price: arr | async fn }`;欄位名與幣安現貨一致(`Open/High/Low/Close/Volumn/QuoteAssetVolume/NumberOfTrades/TakerBuyBaseAssetVolume/…`),缺欄位之定義會被剔除(看 `buildParams` 回傳之 `dropped`)。
 - 求解之常駐擴庫:`solve({ workers: n, maxStrategies, onRound })`;長跑者以脫離式行程執行並把 `status()` 寫檔供巡檢;`stop()` 可中止。
 - 其他週期:`interval` 給 `'1hr'` 等內建週期,或另給 `intervalSec`;需 w-data-trade 支援 `opt.barsPerDay`(見 state.md 之待辦)。
+- 改用基礎單位(`settings.unit`):先 `recomputeStrategies` 依序 `verify` → `dry` → `write`(寫至另一夾,驗收後再換夾)把既有策略庫改為同一口徑,之後才以 `unit` 求解或普測(同 tkid 之覆寫以等效年化比較,新舊口徑不可混在同一庫;`w-trade-solve` ≥ 2.0.40 於同 tkid 新舊口徑不同時以本次覆寫並於 `useShowLog` 時警告);交易規則或緩衝改變即重算。
+  - `unit` 之 `rule` 三欄、`buffer`、`units` 與 `uIni`、`thEqYr`、`takeLimit`、`limit` 皆可給數字字串(檢測通過即轉為數值,策略檔與 journal 落地皆為數值);`asOf`、`source` 須為非空字串且原樣保留。無門檻之舊檔(遷移檔)之跨門檻判定取決於 `thEqYr`(套件不給預設門檻),使用端須明給並於 `write` 前定案(journal 之 header 記之,中斷後改變即無法續跑)。
+  - 重算只寫 `fdOut`(另一夾)與 `fdReport`;不要把 `fdReport` 設在策略庫或輸出夾之內。鎖檔 `recompute.lock` 與接手保護檔 `recompute.lock.takeover` 於當機後可能遺留,確認無其他重算行程後方可手動刪除(訊息已附處置)。
+  - 單檔重放無逾時、不做 fsync 等已知限制見 `rulebook.md` TS-19。
 
 ## 2. 維護
 
 - 改 `src/` 任何匯出:同步 JSDoc(含 `@example`)、`README.md` 相應節、`sgud/state/state.md`。
 - 改 `g.mjs`:實跑一次把輸出貼回檔末 `// =>`,並把全文貼回 `README.md` 之 Example。
 - 改 cfg／opt 之讀取:同步 `CFG_KEYS`／`SOLVE_OPT_KEYS`。
-- 改 worker entry(`sweep*_worker.mjs`、`solveWorker.mjs`)之訊息協定:同步主程序端(`sweepSingle.mjs`／`sweepPairs.mjs`／`solve.mjs`)與 `rulebook.md` TS-15。
+- 改 worker entry(`sweep*_worker.mjs`、`solveWorker.mjs`、`recomputeStrategies_worker.mjs`)之訊息協定:同步主程序端(`sweepSingle.mjs`／`sweepPairs.mjs`／`solve.mjs`／`recomputeStrategies.mjs`)與 `rulebook.md` TS-15、TS-19。
+- 改管線各階段(`src/cfg.mjs`、`src/sweep/`、`src/solve/`、`src/createPipeline.mjs`)前後,**未給 `settings.unit` 時須逐位不變**(TS-17):先以 `git archive HEAD` 解出改前之 `src` 放於套件根下之暫存夾,再以 `node test/tools/abPipeline.mjs <src資料夾> <標籤>` 各跑一次(輸出於 `test/_tmp/abPipeline/<標籤>/`;同一份 src 連跑兩次應相同),`node test/tools/abPipeline.mjs --diff <標籤A> <標籤B>` 全同(離開碼 0)才算不變;跑完刪 `test/_tmp/abPipeline` 與暫存夾。經測試鎖執行。
+- 改 `src/recompute/recomputeLock.mjs` 之取鎖或接手:除 `unit-recompute`〈C11 鎖檔〉外,以 `node test/tools/lockRaceProbe.mjs 60`(多個子行程同時接手同一殘留鎖,量「持有者數 ≠ 1」與取得者 `staleLock` 之分布;子行程為 `test/tools/lockChild.mjs`;經測試鎖執行,約 6 分鐘)重複數十次,期望 `winnersNot1` 與 `staleFalse` 皆為 0(離開碼 0),因單次綠不能證互斥。
 - 新增依賴:列入 `package.json`、以 `src/` 深層路徑引用、重盤 `toolg/gDistRollup.mjs` 之 external。
 - 測試:`npm test`(mocha `--no-parallel --timeout 180000`,約 40 秒;會起 worker_threads,測試中 `takeLimit` 固定 2、`workers` 固定 1~2,**新增測試不得用預設 `takeLimit`**〔預設為 `os.availableParallelism() - 1`,會隨核數放大〕);暫存只落 `test/_tmp/`(各案自刪)。
 - 編譯與驗 dist:依 `script.txt` 列序(`modifyReadme` → `cleanFolder` → `jsdoc` → `gDocsExams` → `gDistRollup` → `genDocsDist`);`gDistRollup` 後以 `require` 載入 dist,與 ESM 入口比對匯出鍵與 `typeof`,並實跑 `buildOhlc` → `buildParams` → `buildCache`(不開 worker)核對產物與 ESM 逐位元組相同。**自有套件不可列為 external**(見規則 TS-06)。
