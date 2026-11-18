@@ -9,7 +9,8 @@
 - 數據延長時只需重跑 `fetchData` → `buildOhlc` → `buildParams` → `buildCache`:nm 沿用凍結值;先觸快取之區間終點改變即重建。
 - 外部數據(股價):`source: { price: arr | async fn }`;欄位名與幣安現貨一致(`Open/High/Low/Close/Volumn/QuoteAssetVolume/NumberOfTrades/TakerBuyBaseAssetVolume/…`),缺欄位之定義會被剔除(看 `buildParams` 回傳之 `dropped`)。
 - 求解之常駐擴庫:`solve({ workers: n, maxStrategies, onRound })`;長跑者以脫離式行程執行並把 `status()` 寫檔供巡檢;`stop()` 可中止。
-- 其他週期:`interval` 給 `'1hr'` 等內建週期,或另給 `intervalSec`;需 w-data-trade 支援 `opt.barsPerDay`(見 state.md 之待辦)。
+- 其他週期:`interval` 給 `'1hr'` 等內建週期,或另給 `intervalSec`(每根 K 線秒數;60 之正整數倍且至多 31536000,數字字串轉為數值,給了而無效即拋);需 w-data-trade ≥ 1.0.50(根數為本:根數不變、期別標籤 = 根數 × 每根秒數)。非 4hr 之因子鍵與值與舊版不同,舊因子庫須重建;最長期別約需 360 根暖機,資料起點宜提前(見 README〈限制與注意〉)。
+- 改 `intervalSec` 之處理(`src/cfg.mjs`、`buildKp`)前後:以 `git archive HEAD` 解出改前之 `src` 於套件根下之暫存夾,對**每根 4hr** 之合成數據(含溢價指數與僅 OHLC 兩組)各跑 `buildOhlc` → `buildParams`(內建目錄全部定義),逐項比對 `keys`(含順序)、`defs`、`dropped`、`calibrated`、`meta`(nm 與 optMethod 之鍵序與值)與全部序列檔之位元組雜湊,須全同;並以每根 1hr 之數據證明比對抓得到差異(靈敏度)。對拍工具為一次性腳本,未入庫。
 - 改用基礎單位(`settings.unit`):先 `recomputeStrategies` 依序 `verify` → `dry` → `write`(寫至另一夾,驗收後再換夾)把既有策略庫改為同一口徑,之後才以 `unit` 求解或普測(同 tkid 之覆寫以等效年化比較,新舊口徑不可混在同一庫;`w-trade-solve` ≥ 2.0.40 於同 tkid 新舊口徑不同時以本次覆寫並於 `useShowLog` 時警告);交易規則或緩衝改變即重算。
   - `unit` 之 `rule` 三欄、`buffer`、`units` 與 `uIni`、`thEqYr`、`takeLimit`、`limit` 皆可給數字字串(檢測通過即轉為數值,策略檔與 journal 落地皆為數值);`asOf`、`source` 須為非空字串且原樣保留。無門檻之舊檔(遷移檔)之跨門檻判定取決於 `thEqYr`(套件不給預設門檻),使用端須明給並於 `write` 前定案(journal 之 header 記之,中斷後改變即無法續跑)。
   - 重算只寫 `fdOut`(另一夾)與 `fdReport`;不要把 `fdReport` 設在策略庫或輸出夾之內。鎖檔 `recompute.lock` 與接手保護檔 `recompute.lock.takeover` 於當機後可能遺留,確認無其他重算行程後方可手動刪除(訊息已附處置)。

@@ -998,7 +998,7 @@
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="recompute_recomputeStrategies_core.mjs.html">recompute/recomputeStrategies_core.mjs</a>, <a href="recompute_recomputeStrategies_core.mjs.html#line23">line 23</a>
+        <a href="recompute_recomputeStrategies_core.mjs.html">recompute/recomputeStrategies_core.mjs</a>, <a href="recompute_recomputeStrategies_core.mjs.html#line25">line 25</a>
     </li></ul></dd>
     
 
@@ -3339,14 +3339,15 @@ console.log(r.meta.nBars, r.changed)</code></pre>
     <dt class="tag-description">Description:</dt>
     <dd class="tag-description"><ul class="dummy"><li><p>建立method名稱對應計算函數之映射(供w-data-trade dataConvert與dataCalibrate呼叫)</p>
 <p>內建method為w-data-trade之各calc(取值類orig、ma、maNorm、ema、emaNorm、vec、vecNorm與指標類kdj、macd、vortex、rsi、klr、atr、bbpb、obv、mfi、adx、donchian、supertrend、keltner、vwap、cvd、ats、ichimoku、candle)
-每次呼叫皆把barsPerDay(每日K線根數)併入傳給calc之opt，使w-data-trade之週期表依K線週期等比換算(4hr為6即不換算)；呼叫端給之optMethod(index側偏移參數等)原樣保留
-calcs可擴充或覆寫method，函數簽章(arr, keyIn, optMethod) =&gt; rrs，rrs為各期[{period, len, vs: [{time, ...keyOuts}]}]</p></li></ul></dd>
+每次呼叫皆把intervalSec(每根K線之秒數)併入傳給calc之opt(w-data-trade &gt;= 1.0.50，根數為本)：各calc內建週期表之值為根數，不隨K線週期改變，期別標籤(即輸出key之period)= 根數 × intervalSec(4hr為14400即與內建標籤相同)；呼叫端給之optMethod(index側偏移參數等)原樣保留，其內之intervalSec可覆寫
+calcs可擴充或覆寫method，函數簽章(arr, keyIn, optMethod) =&gt; rrs，rrs為各期[{period, len, vs: [{time, ...keyOuts}]}]
+intervalSec依w-data-trade之chkIntervalSec檢核(60之正整數倍且至多31536000，數值或數字字串，轉為數值)，給了而無效即throw <code>invalid opt.intervalSec: must be a positive integer multiple of 60 up to 31536000</code>，null與未給取預設14400；已移除之舊選項barsPerDay視為未知鍵，不收</p></li></ul></dd>
     
 
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="params_buildParams.mjs.html">params/buildParams.mjs</a>, <a href="params_buildParams.mjs.html#line38">line 38</a>
+        <a href="params_buildParams.mjs.html">params/buildParams.mjs</a>, <a href="params_buildParams.mjs.html#line40">line 40</a>
     </li></ul></dd>
     
 
@@ -3393,7 +3394,7 @@ calcs可擴充或覆寫method，函數簽章(arr, keyIn, optMethod) =&gt; rrs，
 
     <h5 class="h5-examples">Example</h5>
     
-    <pre class="prettyprint"><code>let kp = buildKp({ myCalc: async (arr, keyIn, optMethod) => [{ period: '1bar', len: 1, vs: [] }] }, { barsPerDay: 24 })
+    <pre class="prettyprint"><code>let kp = buildKp({ myCalc: async (arr, keyIn, optMethod) => [{ period: '1bar', len: 1, vs: [] }] }, { intervalSec: 3600 })
 console.log(Object.keys(kp).length, typeof kp.rsi, typeof kp.myCalc)
 // => 26 function function</code></pre>
 
@@ -3532,13 +3533,16 @@ console.log(Object.keys(kp).length, typeof kp.rsi, typeof kp.myCalc)
 
         <tr>
             
-                <td class="name"><code>barsPerDay</code></td>
+                <td class="name"><code>intervalSec</code></td>
             
 
             <td class="type">
             
                 
 <span class="param-type">Number</span>
+|
+
+<span class="param-type">String</span>
 
 
 
@@ -3560,12 +3564,12 @@ console.log(Object.keys(kp).length, typeof kp.rsi, typeof kp.myCalc)
             
                 <td class="default">
                 
-                    <code>6</code>
+                    <code>14400</code>
                 
                 </td>
             
 
-            <td class="description last"><p>輸入每日K線根數，預設6(4hr)</p></td>
+            <td class="description last"><p>輸入每根K線之秒數，60之正整數倍且至多31536000(數值或數字字串)，預設14400(4hr)</p></td>
         </tr>
 
     
@@ -5431,7 +5435,7 @@ console.log(r.track, r.ok, r.nFin, r.edge, r.edgeICIR, r.edgePosRatio)
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="recompute_recomputeStrategies_core.mjs.html">recompute/recomputeStrategies_core.mjs</a>, <a href="recompute_recomputeStrategies_core.mjs.html#line62">line 62</a>
+        <a href="recompute_recomputeStrategies_core.mjs.html">recompute/recomputeStrategies_core.mjs</a>, <a href="recompute_recomputeStrategies_core.mjs.html#line64">line 64</a>
     </li></ul></dd>
     
 
@@ -6134,14 +6138,14 @@ let n = countJson('./data/strategies')</code></pre>
     <dt class="tag-description">Description:</dt>
     <dd class="tag-description"><ul class="dummy"><li><p>建立策略庫重算之worker核心(每worker一次; 依求解時間窗快取取序列函數)</p>
 <p>逐隻: ①讀策略檔(須有settings與solve之timeStart/timeEnd, 否則unsupported); ②忠實重放: 以檔內settings於求解時間窗重跑官方runStrategy, 摘要須與檔內逐欄相同(timeTest除外), 不同即mismatch; 有fitness欄而不等於現行calcFitness(settings,summary)者(舊版適應函數所算)另記fitnessStale(不擋重算);
-③verify模式至此為ok; dry/write模式: 檔內settings已等於目標(uIni與unit; 檔內settings.unit之數字字串與同值之數字視為相同, 以轉為數值後比較; settings.uIni為數字字串之檔不能忠實重放〔回測套件不轉型〕而為mismatch)且fitness為現行算法者為already, 否則以目標settings(檔內settings之uIni換為目標、unit設為目標)重跑, 交易筆數、已平倉筆數、勝率須與檔內相同且檔名不變(否則r8); 通過者為ok並附新內容(settings、summary、fitness換新, 其餘欄與鍵序不變); 單一策略之最大持倉名義不設門檻, 只回傳其值(uTradeAllMax1)與同時持倉之單位數(unitsMax1 = numTradeAllMax × units, 摘要無numTradeAllMax時為null)供統計
+③verify模式至此為ok; dry/write模式: 檔內settings已等於目標(uIni與unit; 檔內settings.uIni與settings.unit之數字字串與同值之數字視為相同, 以轉為數值後比較, 回測套件1.1.43起對兩者皆收數字字串並轉型, 故數字字串之檔可忠實重放; settings.uIni為無效值〔非數字字串、非正數或非數值型別〕之檔於忠實重放時被回測套件拒絕, 例外即記error〔訊息不含輸入值〕、不中斷整批)且fitness為現行算法者為already〔逐位複製, 含原字串寫法〕, 否則以目標settings(檔內settings之uIni換為目標、unit設為目標)重跑, 交易筆數、已平倉筆數、勝率須與檔內相同且檔名不變(否則r8); 通過者為ok並附新內容(settings、summary、fitness換新, 其餘欄與鍵序不變); 單一策略之最大持倉名義不設門檻, 只回傳其值(uTradeAllMax1)與同時持倉之單位數(unitsMax1 = numTradeAllMax × units, 摘要無numTradeAllMax時為null)供統計
 檔名與檔內交易次數級距不一致之舊檔另記nameMismatch(只列、不擋; 輸出沿用原檔名); 例外一律以status 'error'回傳(不中斷worker)</p></li></ul></dd>
     
 
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="recompute_recomputeStrategies_core.mjs.html">recompute/recomputeStrategies_core.mjs</a>, <a href="recompute_recomputeStrategies_core.mjs.html#line111">line 111</a>
+        <a href="recompute_recomputeStrategies_core.mjs.html">recompute/recomputeStrategies_core.mjs</a>, <a href="recompute_recomputeStrategies_core.mjs.html#line118">line 118</a>
     </li></ul></dd>
     
 
@@ -8433,7 +8437,7 @@ console.log(r.kept.map((s) => s.summary.rEquivalentCumuProfitOrLossFinalNormYear
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="recompute_recomputeStrategies_core.mjs.html">recompute/recomputeStrategies_core.mjs</a>, <a href="recompute_recomputeStrategies_core.mjs.html#line41">line 41</a>
+        <a href="recompute_recomputeStrategies_core.mjs.html">recompute/recomputeStrategies_core.mjs</a>, <a href="recompute_recomputeStrategies_core.mjs.html#line43">line 43</a>
     </li></ul></dd>
     
 
@@ -10316,13 +10320,16 @@ console.log(v.volumnSell, v.volumnDiff, v.vbr, v.vsr, v.vdr)
 <dl class="details">
     
     <dt class="tag-description">Description:</dt>
-    <dd class="tag-description"><ul class="dummy"><li><p>取得K線週期之秒數</p></li></ul></dd>
+    <dd class="tag-description"><ul class="dummy"><li><p>取得K線週期之秒數</p>
+<p>interval為內建週期(INTERVALS)時回傳其秒數；非內建週期時取fallback(每根K線之秒數，即cfg.intervalSec)
+fallback給了(非null與undefined)即依w-data-trade之chkIntervalSec檢核(60之正整數倍且至多31536000之整數，數值或數字字串，數字字串轉為數值，檢測之值即使用之值)，無效即throw(內建週期亦同，不退回預設值；訊息固定且不含輸入值)
+內建週期時fallback雖經檢核但不採用，以內建秒數為準</p></li></ul></dd>
     
 
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="cfg.mjs.html">cfg.mjs</a>, <a href="cfg.mjs.html#line81">line 81</a>
+        <a href="cfg.mjs.html">cfg.mjs</a>, <a href="cfg.mjs.html#line85">line 85</a>
     </li></ul></dd>
     
 
@@ -10369,8 +10376,8 @@ console.log(v.volumnSell, v.volumnDiff, v.vbr, v.vsr, v.vdr)
 
     <h5 class="h5-examples">Example</h5>
     
-    <pre class="prettyprint"><code>console.log(intervalSec('4hr'), intervalSec('1hr'), intervalSec('2hr', 7200))
-// => 14400 3600 7200</code></pre>
+    <pre class="prettyprint"><code>console.log(intervalSec('4hr'), intervalSec('1hr'), intervalSec('2hr', 7200), intervalSec('1day', '86400'))
+// => 14400 3600 7200 86400</code></pre>
 
 
 
@@ -10447,6 +10454,9 @@ console.log(v.volumnSell, v.volumnDiff, v.vbr, v.vsr, v.vdr)
             
                 
 <span class="param-type">Number</span>
+|
+
+<span class="param-type">String</span>
 
 
 
@@ -10473,7 +10483,7 @@ console.log(v.volumnSell, v.volumnDiff, v.vbr, v.vsr, v.vdr)
                 </td>
             
 
-            <td class="description last"><p>輸入interval非內建週期時改用之秒數，預設null</p></td>
+            <td class="description last"><p>輸入interval非內建週期時改用之每根秒數(數值或數字字串)，預設null</p></td>
         </tr>
 
     
@@ -11811,6 +11821,7 @@ console.log(ott('2023-01-01T00:00:00').add(4, 'hour').format('YYYY-MM-DDTHH:mm:s
     <dt class="tag-description">Description:</dt>
     <dd class="tag-description"><ul class="dummy"><li><p>正規化管線設定</p>
 <p>必填: root(工作根資料夾)、name(幣種或標的名稱, 用於組序列key與策略識別)、symbol(交易對)、interval(K線週期)
+interval為內建週期(INTERVALS)或另給intervalSec(每根K線之秒數, 60之正整數倍且至多31536000之整數, 數值或數字字串, 轉為數值; 依w-data-trade之chkIntervalSec檢核, 給了而無效即throw <code>invalid cfg.intervalSec: must be a positive integer multiple of 60 up to 31536000</code>, 不含輸入值); 各calc之期別以根數為本, 期別標籤 = 根數 × intervalSec, 故換週期時根數不變(見buildParams)
 source為'binance'(預設, 由幣安抓取現貨K線與溢價指數K線)或物件{price,index}(外部數據, 各為K線陣列或回傳K線陣列之async函數, 供股價等非幣安標的)
 useIndex預設true(須同時有price與index), 外部數據未給index時自動為false; 為false時基於index之參數將於buildParams被剔除
 train為訓練期{timeStart,timeEnd[,timeEndByMode:{long,short}]}, 為最佳化求解與普測之評估區間; 未給時僅能執行數據與參數階段
@@ -11821,7 +11832,7 @@ cfg之鍵只認CFG_KEYS，打錯之鍵拋錯(靜默接受會使正名鍵維持�
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="cfg.mjs.html">cfg.mjs</a>, <a href="cfg.mjs.html#line174">line 174</a>
+        <a href="cfg.mjs.html">cfg.mjs</a>, <a href="cfg.mjs.html#line188">line 188</a>
     </li></ul></dd>
     
 
@@ -11869,12 +11880,12 @@ cfg之鍵只認CFG_KEYS，打錯之鍵拋錯(靜默接受會使正名鍵維持�
     <h5 class="h5-examples">Example</h5>
     
     <pre class="prettyprint"><code>let cfg = normalizeCfg({ root: './data', name: 'ETH', symbol: 'ETHUSDT', interval: '4hr', train: { timeStart: '2022-07-01T00:00:00', timeEnd: '2025-10-06T00:00:00' } })
-console.log(cfg.keyOhlc, cfg.keyIndex, cfg.intervalSec, cfg.barsPerDay, cfg.useIndex, cfg.source, cfg.timeZone)
-// => ETH_price_4hr ETH_index_4hr 14400 6 true binance Asia/Taipei
+console.log(cfg.keyOhlc, cfg.keyIndex, cfg.intervalSec, cfg.useIndex, cfg.source, cfg.timeZone)
+// => ETH_price_4hr ETH_index_4hr 14400 true binance Asia/Taipei
 
-let cfgStock = normalizeCfg({ root: './data', name: 'TSMC', symbol: '2330', interval: '1day', intervalSec: 86400, source: { price: [] } })
-console.log(cfgStock.useIndex, cfgStock.barsPerDay, Object.keys(cfgStock.fds).join(','))
-// => false 1 raw,ohlc,param,cache,strategies,strategiesP1,strategiesP2,meta</code></pre>
+let cfgStock = normalizeCfg({ root: './data', name: 'TSMC', symbol: '2330', interval: '1day', intervalSec: '86400', source: { price: [] } })
+console.log(cfgStock.useIndex, cfgStock.intervalSec, Object.keys(cfgStock.fds).join(','))
+// => false 86400 raw,ohlc,param,cache,strategies,strategiesP1,strategiesP2,meta</code></pre>
 
 
 
@@ -11947,7 +11958,7 @@ console.log(cfgStock.useIndex, cfgStock.barsPerDay, Object.keys(cfgStock.fds).jo
 
         
 <div class="param-desc">
-    <p>回傳正規化後之設定物件，含fds(各資料夾絕對路徑)、keyOhlc、keyIndex、intervalSec、barsPerDay與settings</p>
+    <p>回傳正規化後之設定物件，含fds(各資料夾絕對路徑)、keyOhlc、keyIndex、intervalSec(每根K線之秒數，數值)與settings</p>
 </div>
 
 
@@ -12185,7 +12196,7 @@ unit非物件、rule非物件、asOf或source非非空字串、或buildBaseUnitN
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="cfg.mjs.html">cfg.mjs</a>, <a href="cfg.mjs.html#line139">line 139</a>
+        <a href="cfg.mjs.html">cfg.mjs</a>, <a href="cfg.mjs.html#line152">line 152</a>
     </li></ul></dd>
     
 
@@ -14108,7 +14119,7 @@ let meta = readJsonOr('./data/meta/ohlc.json', null)</code></pre>
 可中斷續跑: 每檔結果逐行記於opt.fdReport之journal_<mode>.jsonl(首行header記模式、資料夾、目標口徑、數據夾、時區、門檻與三個套件之版本，續跑時須相同；各列另記來源檔之位元組數與修改時刻)；續跑時已為ok或already者略過(來源檔之位元組數或修改時刻已變者重做；write另核對輸出檔之位元組數與雜湊，不符即重做)、不合格者重做；末行半截(中斷所致)者丟棄後續跑；同一fdReport以鎖檔recompute.lock防兩個重算同時使用(見recomputeLock.mjs)
 結束時(含例外中止，標crashed)寫report_<mode>.json(統計)、failures_<mode>.json(全部不合格)、cross_<mode>.json(跨過入庫門檻與無門檻者之全部清單)、overUIni_<mode>.json(新口徑之最大持倉名義超過uIni者，只列不處置)、nameMismatch_<mode>.json(檔名與檔內交易次數級距不一致者，只列)，並回傳統計
 入庫門檻取檔內solve.thREquivalentCumuProfitOrLossFinalNormYear；檔內無門檻者，給opt.thEqYr即以之計(nThFallback)，未給則列為noThreshold、不計入跨門檻(套件不給預設門檻)
-檔內settings已等於目標者(uIni之數值相同、unit以buildBaseUnitNotional之key判同一口徑且記錄欄asOf、source與其他欄相同；檔內數字字串與數字同值者視為相同)且fitness為現行算法者為already；選項之數字字串(uIni、unit、thEqYr、takeLimit、limit)檢測通過即轉為數值，錯誤訊息為<code>invalid opt.&lt;名稱&gt;: must be &lt;種類&gt;</code>、不含輸入值
+檔內settings已等於目標者(uIni之數值相同、unit以buildBaseUnitNotional之key判同一口徑且記錄欄asOf、source與其他欄相同；檔內settings.uIni與settings.unit之數字字串與數字同值者視為相同〔回測套件1.1.43起對兩者皆收數字字串並轉型，忠實重放可通過〕，already者逐位複製含原字串寫法)且fitness為現行算法者為already；檔內settings.uIni為無效值(非數字字串、非正數或非數值型別)者於忠實重放時被回測套件拒絕，記error(訊息不含輸入值)、不中斷整批；選項之數字字串(uIni、unit、thEqYr、takeLimit、limit)檢測通過即轉為數值，錯誤訊息為<code>invalid opt.&lt;名稱&gt;: must be &lt;種類&gt;</code>、不含輸入值
 只處理fdIn第1層之json檔(依檔名排序)；不新增、不刪除、不改名任何策略檔；相對路徑皆相對於呼叫時之工作目錄(process.cwd())</p></li></ul></dd>
     
 
@@ -15834,7 +15845,7 @@ console.log(r.mode, r.comps, r.candidates)</code></pre>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="cfg.mjs.html">cfg.mjs</a>, <a href="cfg.mjs.html#line338">line 338</a>
+        <a href="cfg.mjs.html">cfg.mjs</a>, <a href="cfg.mjs.html#line351">line 351</a>
     </li></ul></dd>
     
 
@@ -18107,7 +18118,7 @@ console.log(r.nFactors, r.nOut)</code></pre>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="cfg.mjs.html">cfg.mjs</a>, <a href="cfg.mjs.html#line109">line 109</a>
+        <a href="cfg.mjs.html">cfg.mjs</a>, <a href="cfg.mjs.html#line122">line 122</a>
     </li></ul></dd>
     
 
@@ -18843,7 +18854,7 @@ writeJson('./data/meta/x.json', { a: 1 })</code></pre>
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Wed Nov 18 2026 18:04:01 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Thu Nov 19 2026 00:20:04 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
 </footer>
 
 <script>prettyPrint();</script>

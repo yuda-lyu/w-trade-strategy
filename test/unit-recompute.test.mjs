@@ -25,9 +25,9 @@ import { buildFdTmp, cfgOf } from './tools/synthKit.mjs'
 //  C3 新口徑: settings之uIni換為目標、unit設為目標(其餘欄與鍵序不變, unit接於末), summary為新settings之重放, fitness為calcFitness(新settings,新summary), 其餘欄與鍵序不變; 檔名與檔數不變; 輸出格式同原檔
 //  C4 交易筆數、已平倉筆數、勝率與檔名須不變(checkInvariant; 否則r8)
 //  C5 write遇任一不合格(mismatch、r8、unsupported、error)即中止(不再寫檔)並列出, verify與dry預設跑完並列出全部
-//  C6 可中斷續跑: journal首行header記模式、資料夾、目標口徑、數據夾、時區、門檻與三個套件之版本(續跑時須相同, 否則throw); 各列另記來源檔之位元組數與修改時刻; 續跑時已為ok或already且來源未變者略過, write另核對輸出檔之位元組數與雜湊(不符即重做); 末行半截者丟棄; 檔內settings已等於目標者為already(逐位複製); write之ok須namesSame為true(輸出夾之檔皆屬journal已記為寫出者、且涵蓋本次所選; 全庫時檔數等於fdIn)
+//  C6 可中斷續跑: journal首行header記模式、資料夾、目標口徑、數據夾、時區、門檻與三個套件之版本(續跑時須相同, 否則throw); 各列另記來源檔之位元組數與修改時刻; 續跑時已為ok或already且來源未變者略過, write另核對輸出檔之位元組數與雜湊(不符即重做); 末行半截者丟棄; 檔內settings已等於目標者(settings.uIni與settings.unit之數字字串與同值之數字視為相同)為already(逐位複製); write之ok須namesSame為true(輸出夾之檔皆屬journal已記為寫出者、且涵蓋本次所選; 全庫時檔數等於fdIn)
 //  C7 統計: 前後等效年化之分布(同一母體: 重算成功者)、跨過入庫門檻之隻數與清單(檔內solve之門檻; 無則opt.thEqYr並計nThFallback; 皆無則列noThreshold、不計入跨門檻)、不同之欄、最大持倉名義之分布
-//  C8 非求解所落地之策略檔(無solve時間窗)為unsupported; 壞檔為error
+//  C8 非求解所落地之策略檔(無solve時間窗)為unsupported; 壞檔為error; 檔內settings.uIni為無效值者(忠實重放被回測套件拒絕)亦為error, 不中斷整批(訊息V19格式、不含輸入值V20)
 //  C9 單一策略之最大持倉名義不設門檻: 超過目標uIni者照常重算寫出, 只統計其隻數、最大者與最大單位數並列清單(不處置)
 //  C10 寫出之安全: 不提供原地寫回; fdOut與fdIn同夾(含大小寫、目錄連結之別名)或互為上下層即拒; fdReport不得等於或位於fdIn、fdOut之內(各模式); 建立fdOut之後再核一次; 首次執行時fdOut須不存在或不含*.json; 前次中斷所遺之暫存檔於開始時清除; 每一個寫出案(含續跑、中止與被拒者)之原策略庫逐位不變
 //  C10(判定法) pathRelation: 正規路徑(realpathSync.native, win32不分大小寫)與目錄本體(dev+ino, 含上層)兩法各自可判定別名; 檔案識別為0者不以識別比對; 實體路徑取不到即throw
@@ -472,16 +472,158 @@ describe('recomputeStrategies(策略庫依基礎單位重算)', function() {
             assert.deepStrictEqual(snapshot(fd), snapA) //C10 來源夾逐位不變
         })
 
-        it('C1 檔內settings.uIni為數字字串者不能忠實重放(回測套件不對uIni轉型, 以原字串運算)而為mismatch, 不當作同值之數字(fail-closed)', async function() {
-            let fd = path.resolve(fdTmp, 'lib-uini-str')
-            fs.mkdirSync(fd, { recursive: true })
-            let d = readJ(fdOut, fns[0])
-            d.settings.uIni = '10000'
-            fs.writeFileSync(path.resolve(fd, fns[0]), JSON.stringify(d, null, 2), 'utf8')
-            let init = { fdIn: fd, fdOhlc: base.fds.ohlc, fdParam: base.fds.param, timeZone: base.timeZone, mode: 'dry', target: { uIni: 10000, unit: normalizeUnit(unitR, 'unit') } }
-            let r = await createCore(init)({ fn: fns[0] })
-            assert.strictEqual(r.status, 'mismatch', JSON.stringify(r)) //忠實重放不符, 不會走到already之比較
-            assert.ok(r.diffFields.includes('uIni'), JSON.stringify(r.diffFields)) //summary.uIni於重放時記成字串
+        //檔內settings.uIni之數字字串(K4、K7): w-trade-backtest 1.1.43起對settings.uIni收數字字串並轉型(給數字字串與給數字之訂單與摘要逐位相同), 給了而無效即reject(訊息不含輸入值); 故與settings.unit同規則: 與目標同值者視為相同
+        let copyOutTo = (to) => {
+            fs.mkdirSync(to, { recursive: true })
+            for (let f of fns) {
+                fs.copyFileSync(path.resolve(fdOut, f), path.resolve(to, f))
+            }
+            return to
+        }
+        let editIn = (fd, fn, f) => {
+            let d = readJ(fd, fn)
+            f(d)
+            fs.writeFileSync(path.resolve(fd, fn), JSON.stringify(d, null, 2), 'utf8')
+        }
+        let initOf = (fdIn, mode) => ({ fdIn, fdOhlc: base.fds.ohlc, fdParam: base.fds.param, timeZone: base.timeZone, mode, target: { uIni: 10000, unit: normalizeUnit(unitR, 'unit') } })
+        let statusOf = (fdReport, mode) => Object.fromEntries(fs.readFileSync(path.resolve(fdReport, `journal_${mode}.jsonl`), 'utf8').trim().split('\n').slice(1).map((l) => JSON.parse(l)).map((e) => [e.fn, e.status]))
+
+        it('C6/K4 檔內settings.uIni之數字字串與同值之數字視為同一口徑(忠實重放通過, fitness為現行者為already並逐位複製含原字串寫法; fitness不同者依既有流程重算並落地為數值)', async function() {
+            //前提: 回測套件對settings.uIni之數字字串轉型, 摘要與給數字者逐位相同(此前提不成立時, 以下各案之意義即失)
+            let d0 = readJ(fdOut, fns[0])
+            let sNum = noTimeTest((await replay(d0, d0.settings)).summary)
+            let sStr = noTimeTest((await replay(d0, { ...d0.settings, uIni: ' 1e4 ' })).summary)
+            assert.strictEqual(typeof sStr.uIni, 'number', '前提: summary.uIni為數值')
+            assert.deepStrictEqual(sStr, sNum, '前提: 數字字串與數字之摘要逐位相同')
+            let fd = copyOutTo(path.resolve(fdTmp, 'lib-uini-same'))
+            editIn(fd, fns[0], (d) => {
+                d.settings.uIni = '10000'
+            }) //同值之數字字串
+            editIn(fd, fns[1], (d) => {
+                d.settings.uIni = ' 1e4 '
+            }) //同值之另一寫法(去頭尾空白與指數記法, 與回測套件之收值一致)
+            editIn(fd, fns[2], (d) => {
+                d.settings.uIni = '10000'
+                d.fitness = d.fitness + 0.25
+            }) //同值之數字字串但fitness非現行者
+            let snapA = snapshot(fd)
+            //K4 核心逐檔: 同值之數字字串者為already
+            let core = createCore(initOf(fd, 'dry'))
+            for (let fn of [fns[0], fns[1]]) {
+                let r0 = await core({ fn })
+                assert.strictEqual(r0.status, 'already', `${fn} ${JSON.stringify(r0)}`)
+            }
+            //K4 聚合入口: write
+            let fdOutA = path.resolve(fdTmp, 'out-uini-same')
+            let fdReport = path.resolve(fdTmp, 'rep-uini-same')
+            let r = await rc(cfgU, { mode: 'write', fdIn: fd, fdOut: fdOutA, fdReport })
+            assert.deepStrictEqual(r.counts, { already: fns.length - 1, ok: 1 }) //K4 數字字串與同值之數字視為相同
+            let st = statusOf(fdReport, 'write')
+            assert.deepStrictEqual([st[fns[0]], st[fns[1]], st[fns[2]]], ['already', 'already', 'ok'])
+            for (let fn of [fns[0], fns[1]]) {
+                assert.strictEqual(fs.readFileSync(path.resolve(fdOutA, fn), 'utf8'), fs.readFileSync(path.resolve(fd, fn), 'utf8'), fn) //already者逐位複製(含原字串寫法)
+            }
+            assert.strictEqual(readJ(fdOutA, fns[0]).settings.uIni, '10000')
+            assert.strictEqual(readJ(fdOutA, fns[1]).settings.uIni, ' 1e4 ')
+            let w = readJ(fdOutA, fns[2])
+            assert.strictEqual(w.settings.uIni, 10000) //重算者落地為數值(以目標為準)
+            assert.strictEqual(w.fitness, calcFitness(w.settings, w.summary)) //fitness以現行算法重寫
+            assert.deepStrictEqual(snapshot(fd), snapA) //C10 來源夾逐位不變
+        })
+
+        it('C1/C3/K4 檔內settings.uIni為不同於目標之數字字串者: 不以數字字串本身為mismatch(verify為ok), 依目標重算, 落地之settings.uIni為目標之數值, 輸出與以數值起算者相同(timeTest除外)', async function() {
+            let fd = copyLib(path.resolve(fdTmp, 'lib-uini-diff'))
+            editIn(fd, fns[0], (d) => {
+                d.settings.uIni = String(d.settings.uIni)
+            })
+            editIn(fd, fns[1], (d) => {
+                d.settings.uIni = ` ${d.settings.uIni} `
+            })
+            assert.deepStrictEqual([readJ(fd, fns[0]).settings.uIni, readJ(fd, fns[1]).settings.uIni], ['1000', ' 1000 '], '前提: 檔內為異於目標(10000)之數字字串')
+            let snapA = snapshot(fd)
+            let rv = await rc(base, { mode: 'verify', fdIn: fd, fdReport: path.resolve(fdTmp, 'rep-uini-diff-v') })
+            assert.deepStrictEqual(rv.counts, { ok: fns.length }) //C1 忠實重放通過, 不以數字字串本身為mismatch
+            assert.deepStrictEqual(rv.faithful, { nPass: fns.length, nMismatch: 0, mismatchFields: {}, nFitnessStale: 0 })
+            let fdOutB = path.resolve(fdTmp, 'out-uini-diff')
+            let rw2 = await rc(cfgU, { mode: 'write', fdIn: fd, fdOut: fdOutB, fdReport: path.resolve(fdTmp, 'rep-uini-diff-w') })
+            assert.deepStrictEqual(rw2.counts, { ok: fns.length }) //K4 與目標不同值, 依目標重算(不當作already)
+            for (let fn of [fns[0], fns[1]]) {
+                let w = readJ(fdOutB, fn)
+                assert.strictEqual(w.settings.uIni, 10000, fn) //C3 uIni換為目標(數值)
+                assert.deepStrictEqual(maskTime(w), maskTime(readJ(fdOut, fn)), fn) //與以數值1000起算之輸出相同
+            }
+            assert.deepStrictEqual(snapshot(fd), snapA) //C10 來源夾逐位不變
+
+            //鑑別前提: 上列之檔本來即與目標之unit不同(未給unit), 不論uIni之值為何皆非already; 故另取已在目標口徑(unit相同)之庫, 只把uIni改為不同值(字串與數字各一, summary與fitness依該uIni重放更新使忠實重放通過), 此時是否重算唯繫於uIni之值
+            let fd2 = copyOutTo(path.resolve(fdTmp, 'lib-uini-diff2'))
+            for (let [fn, u] of [[fns[2], '2500'], [fns[3], 2500]]) {
+                let d = readJ(fd2, fn)
+                d.settings.uIni = u
+                d.summary = (await replay(d, d.settings)).summary
+                d.fitness = calcFitness(d.settings, d.summary)
+                fs.writeFileSync(path.resolve(fd2, fn), JSON.stringify(d, null, 2), 'utf8')
+            }
+            assert.deepStrictEqual([readJ(fd2, fns[2]).settings.unit, readJ(fd2, fns[3]).settings.unit], [unitR, unitR], '前提: unit與目標相同(僅uIni之值不同)')
+            let snapA2 = snapshot(fd2)
+            let rv2 = await rc(base, { mode: 'verify', fdIn: fd2, fdReport: path.resolve(fdTmp, 'rep-uini-diff2-v') })
+            assert.deepStrictEqual(rv2.counts, { ok: fns.length }) //C1 忠實重放通過
+            let fdOutB2 = path.resolve(fdTmp, 'out-uini-diff2')
+            let rw3 = await rc(cfgU, { mode: 'write', fdIn: fd2, fdOut: fdOutB2, fdReport: path.resolve(fdTmp, 'rep-uini-diff2-w') })
+            assert.deepStrictEqual(rw3.counts, { already: fns.length - 2, ok: 2 }) //K4 uIni之值不同(字串與數字皆然)者依目標重算, 不當作already
+            for (let fn of [fns[2], fns[3]]) {
+                let w = readJ(fdOutB2, fn)
+                assert.strictEqual(w.settings.uIni, 10000, fn)
+                assert.deepStrictEqual(maskTime(w), maskTime(readJ(fdOut, fn)), fn) //與目標口徑之輸出相同
+            }
+            assert.deepStrictEqual(snapshot(fd2), snapA2) //C10 來源夾逐位不變
+        })
+
+        it('C1/C5/C8/V19/V20 檔內settings.uIni為無效值(非數字字串、非正數、非數值型別)者: 忠實重放被回測套件拒絕而記error(訊息V19格式、不含輸入值), 不中斷整批(verify與dry跑完並列出全部), write即中止且不寫該檔', async function() {
+            let secret = 'ZZ-secret-uini'
+            let msg = 'invalid settings.uIni: must be a positive number'
+            //核心逐檔: 各種無效值皆為error, 不拋出
+            let fdC = path.resolve(fdTmp, 'lib-uini-badvals')
+            fs.mkdirSync(fdC, { recursive: true })
+            let src = readJ(fdOut, fns[0])
+            let bads = [secret, '', ' ', '0', '-5', '10000abc', 0, -1, true, {}, []]
+            let core = createCore(initOf(fdC, 'dry'))
+            for (let [i, v] of bads.entries()) {
+                fs.writeFileSync(path.resolve(fdC, `bad${i}.json`), JSON.stringify({ ...src, settings: { ...src.settings, uIni: v } }, null, 2), 'utf8')
+                let r0 = await core({ fn: `bad${i}.json` })
+                assert.deepStrictEqual([r0.status, r0.detail], ['error', msg], JSON.stringify(v)) //C8 例外一律以status error回傳
+            }
+            //聚合入口: 庫內有一隻無效值
+            let fdB = copyOutTo(path.resolve(fdTmp, 'lib-uini-bad'))
+            editIn(fdB, fns[0], (d) => {
+                d.settings.uIni = secret
+            })
+            let snapB = snapshot(fdB)
+            let noSecret = (fdReport) => {
+                for (let f of fs.readdirSync(fdReport)) {
+                    assert.ok(!fs.readFileSync(path.resolve(fdReport, f), 'utf8').includes(secret), `${f} 含輸入值`) //V20
+                }
+            }
+            for (let [mode, okStatus] of [['verify', 'ok'], ['dry', 'already']]) {
+                let fdReport = path.resolve(fdTmp, `rep-uini-bad-${mode}`)
+                let r = await rc(cfgU, { mode, fdIn: fdB, fdReport })
+                assert.deepStrictEqual(r.counts, { [okStatus]: fns.length - 1, error: 1 }, mode) //C1 不中斷: 其餘各檔照常處理
+                assert.deepStrictEqual([r.nRun, r.aborted, r.crashed], [fns.length, false, null], mode) //不中斷: 全部逐檔處理完(complete須全部ok或already, 有不合格者為false)
+                assert.strictEqual(r.ok, false)
+                assert.strictEqual(r.nFailures, 1)
+                assert.deepStrictEqual([r.failures[0].fn, r.failures[0].status, r.failures[0].detail], [fns[0], 'error', msg])
+                assert.strictEqual(fs.readFileSync(path.resolve(fdReport, `journal_${mode}.jsonl`), 'utf8').trim().split('\n').length, fns.length + 1, mode) //全部逐檔記入
+                noSecret(fdReport)
+            }
+            //C5 write遇不合格即中止, 不合格之檔不寫
+            let fdOutC = path.resolve(fdTmp, 'out-uini-bad')
+            let fdReportW = path.resolve(fdTmp, 'rep-uini-bad-w')
+            let rW = await rc(cfgU, { mode: 'write', fdIn: fdB, fdOut: fdOutC, fdReport: fdReportW, takeLimit: 1 })
+            assert.strictEqual(rW.aborted, true)
+            assert.strictEqual(rW.ok, false)
+            assert.match(rW.abortReason, /error/)
+            assert.deepStrictEqual(listJson(fdOutC), []) //依檔名排序, 第1檔即無效值者, 不寫
+            noSecret(fdReportW)
+            assert.deepStrictEqual(snapshot(fdB), snapB) //C10 來源夾逐位不變
         })
 
         it('C6 縮小選取範圍之續跑: 先寫3檔再以同一journal只選前2檔續跑, namesSame為true(輸出夾之檔皆屬journal已記者且涵蓋所選)', async function() {

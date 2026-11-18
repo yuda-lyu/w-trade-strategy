@@ -2,12 +2,12 @@ import path from 'path'
 import get from 'lodash-es/get.js'
 import cloneDeep from 'lodash-es/cloneDeep.js'
 import buildBaseUnitNotional from 'w-trade-backtest/src/buildBaseUnitNotional.mjs'
+import { chkIntervalSec, INTERVAL_SEC_MAX } from 'w-data-trade/src/resolvePeriods.mjs'
 import cdbl from 'wsemi/src/cdbl.mjs'
 import cint from 'wsemi/src/cint.mjs'
 import isenum from 'wsemi/src/isenum.mjs'
 import isestr from 'wsemi/src/isestr.mjs'
 import isbol from 'wsemi/src/isbol.mjs'
-import isnum from 'wsemi/src/isnum.mjs'
 import isday from 'wsemi/src/isday.mjs'
 import istime from 'wsemi/src/istime.mjs'
 import iseobj from 'wsemi/src/iseobj.mjs'
@@ -62,28 +62,41 @@ let CFG_KEYS = Object.freeze([
  *
  * @type {Array}
  */
-let DERIVED_KEYS = Object.freeze(['keyOhlc', 'keyIndex', 'barsPerDay'])
+let DERIVED_KEYS = Object.freeze(['keyOhlc', 'keyIndex'])
 
 
 /**
  * 取得K線週期之秒數
  *
+ * interval為內建週期(INTERVALS)時回傳其秒數；非內建週期時取fallback(每根K線之秒數，即cfg.intervalSec)
+ * fallback給了(非null與undefined)即依w-data-trade之chkIntervalSec檢核(60之正整數倍且至多31536000之整數，數值或數字字串，數字字串轉為數值，檢測之值即使用之值)，無效即throw(內建週期亦同，不退回預設值；訊息固定且不含輸入值)
+ * 內建週期時fallback雖經檢核但不採用，以內建秒數為準
+ *
  * @function
  * @param {String} interval 輸入K線週期字串，例如'4hr'
- * @param {Number} [fallback=null] 輸入interval非內建週期時改用之秒數，預設null
+ * @param {Number|String} [fallback=null] 輸入interval非內建週期時改用之每根秒數(數值或數字字串)，預設null
  * @returns {Number} 回傳秒數
  * @example
  *
- * console.log(intervalSec('4hr'), intervalSec('1hr'), intervalSec('2hr', 7200))
- * // => 14400 3600 7200
+ * console.log(intervalSec('4hr'), intervalSec('1hr'), intervalSec('2hr', 7200), intervalSec('1day', '86400'))
+ * // => 14400 3600 7200 86400
  *
  */
 let intervalSec = (interval, fallback = null) => {
+    let given = null
+    if (fallback !== null && fallback !== undefined) {
+        try {
+            given = chkIntervalSec(fallback)
+        }
+        catch (err) {
+            throw new Error(`invalid cfg.intervalSec: must be a positive integer multiple of 60 up to ${INTERVAL_SEC_MAX}`)
+        }
+    }
     if (INTERVALS[interval] !== undefined) {
         return INTERVALS[interval]
     }
-    if (isnum(fallback) && fallback > 0) {
-        return fallback
+    if (given !== null) {
+        return given
     }
     throw new Error(`invalid interval[${interval}], 非內建週期(${Object.keys(INTERVALS).join(', ')})時須給cfg.intervalSec`)
 }
@@ -151,6 +164,7 @@ let normalizeUnit = (unit, name = 'unit') => {
  * 正規化管線設定
  *
  * 必填: root(工作根資料夾)、name(幣種或標的名稱, 用於組序列key與策略識別)、symbol(交易對)、interval(K線週期)
+ * interval為內建週期(INTERVALS)或另給intervalSec(每根K線之秒數, 60之正整數倍且至多31536000之整數, 數值或數字字串, 轉為數值; 依w-data-trade之chkIntervalSec檢核, 給了而無效即throw `invalid cfg.intervalSec: must be a positive integer multiple of 60 up to 31536000`, 不含輸入值); 各calc之期別以根數為本, 期別標籤 = 根數 × intervalSec, 故換週期時根數不變(見buildParams)
  * source為'binance'(預設, 由幣安抓取現貨K線與溢價指數K線)或物件{price,index}(外部數據, 各為K線陣列或回傳K線陣列之async函數, 供股價等非幣安標的)
  * useIndex預設true(須同時有price與index), 外部數據未給index時自動為false; 為false時基於index之參數將於buildParams被剔除
  * train為訓練期{timeStart,timeEnd[,timeEndByMode:{long,short}]}, 為最佳化求解與普測之評估區間; 未給時僅能執行數據與參數階段
@@ -159,16 +173,16 @@ let normalizeUnit = (unit, name = 'unit') => {
  *
  * @function
  * @param {Object} cfg 輸入設定物件
- * @returns {Object} 回傳正規化後之設定物件，含fds(各資料夾絕對路徑)、keyOhlc、keyIndex、intervalSec、barsPerDay與settings
+ * @returns {Object} 回傳正規化後之設定物件，含fds(各資料夾絕對路徑)、keyOhlc、keyIndex、intervalSec(每根K線之秒數，數值)與settings
  * @example
  *
  * let cfg = normalizeCfg({ root: './data', name: 'ETH', symbol: 'ETHUSDT', interval: '4hr', train: { timeStart: '2022-07-01T00:00:00', timeEnd: '2025-10-06T00:00:00' } })
- * console.log(cfg.keyOhlc, cfg.keyIndex, cfg.intervalSec, cfg.barsPerDay, cfg.useIndex, cfg.source, cfg.timeZone)
- * // => ETH_price_4hr ETH_index_4hr 14400 6 true binance Asia/Taipei
+ * console.log(cfg.keyOhlc, cfg.keyIndex, cfg.intervalSec, cfg.useIndex, cfg.source, cfg.timeZone)
+ * // => ETH_price_4hr ETH_index_4hr 14400 true binance Asia/Taipei
  *
- * let cfgStock = normalizeCfg({ root: './data', name: 'TSMC', symbol: '2330', interval: '1day', intervalSec: 86400, source: { price: [] } })
- * console.log(cfgStock.useIndex, cfgStock.barsPerDay, Object.keys(cfgStock.fds).join(','))
- * // => false 1 raw,ohlc,param,cache,strategies,strategiesP1,strategiesP2,meta
+ * let cfgStock = normalizeCfg({ root: './data', name: 'TSMC', symbol: '2330', interval: '1day', intervalSec: '86400', source: { price: [] } })
+ * console.log(cfgStock.useIndex, cfgStock.intervalSec, Object.keys(cfgStock.fds).join(','))
+ * // => false 86400 raw,ohlc,param,cache,strategies,strategiesP1,strategiesP2,meta
  *
  */
 let normalizeCfg = (cfg = {}) => {
@@ -316,7 +330,6 @@ let normalizeCfg = (cfg = {}) => {
         fds,
         keyOhlc: `${name}_price_${interval}`,
         keyIndex: `${name}_index_${interval}`,
-        barsPerDay: 86400 / isec, //每日K線根數(4hr為6), 供w-data-trade各calc之週期表換算
         settings,
     }
 }

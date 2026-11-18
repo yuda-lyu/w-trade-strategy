@@ -103,7 +103,7 @@ let SETTINGS = {
     uIni5000: { uIni: 5000 },
     uTrade3: { uIni: 5000, uTrade: 3 },
     rFee: { rFee: 0.001 },
-    uIniStr: { uIni: '2000' }, //未給unit時不轉型(逐位不變)
+    uIniStr: { uIni: '2000' }, //未給unit時normalizeCfg不轉型(settings原樣, 本庫cfg層語意; 其後之轉型與否由各階段所用之套件決定)
     unitNull: { unit: null },
 }
 let STARTS = { s100: 100, s2000: 2000 }

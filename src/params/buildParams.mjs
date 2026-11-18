@@ -12,6 +12,7 @@ import isnum from 'wsemi/src/isnum.mjs'
 import istime from 'wsemi/src/istime.mjs'
 import haskey from 'wsemi/src/haskey.mjs'
 import wdt from 'w-data-trade/src/WDataTrade.mjs'
+import { chkIntervalSec, INTERVAL_SEC_BASE } from 'w-data-trade/src/resolvePeriods.mjs'
 import CATALOG from './catalog.mjs'
 import { ensureFolder, readJsonOr, writeJson, listJsonKeys, nowIso } from '../util/fsx.mjs'
 
@@ -20,27 +21,26 @@ import { ensureFolder, readJsonOr, writeJson, listJsonKeys, nowIso } from '../ut
  * 建立method名稱對應計算函數之映射(供w-data-trade dataConvert與dataCalibrate呼叫)
  *
  * 內建method為w-data-trade之各calc(取值類orig、ma、maNorm、ema、emaNorm、vec、vecNorm與指標類kdj、macd、vortex、rsi、klr、atr、bbpb、obv、mfi、adx、donchian、supertrend、keltner、vwap、cvd、ats、ichimoku、candle)
- * 每次呼叫皆把barsPerDay(每日K線根數)併入傳給calc之opt，使w-data-trade之週期表依K線週期等比換算(4hr為6即不換算)；呼叫端給之optMethod(index側偏移參數等)原樣保留
+ * 每次呼叫皆把intervalSec(每根K線之秒數)併入傳給calc之opt(w-data-trade >= 1.0.50，根數為本)：各calc內建週期表之值為根數，不隨K線週期改變，期別標籤(即輸出key之period)= 根數 × intervalSec(4hr為14400即與內建標籤相同)；呼叫端給之optMethod(index側偏移參數等)原樣保留，其內之intervalSec可覆寫
  * calcs可擴充或覆寫method，函數簽章(arr, keyIn, optMethod) => rrs，rrs為各期[{period, len, vs: [{time, ...keyOuts}]}]
+ * intervalSec依w-data-trade之chkIntervalSec檢核(60之正整數倍且至多31536000，數值或數字字串，轉為數值)，給了而無效即throw `invalid opt.intervalSec: must be a positive integer multiple of 60 up to 31536000`，null與未給取預設14400；已移除之舊選項barsPerDay視為未知鍵，不收
  *
  * @function
  * @param {Object} [calcs={}] 輸入自訂計算函數物件
  * @param {Object} [opt={}] 輸入設定物件，預設{}
- * @param {Number} [opt.barsPerDay=6] 輸入每日K線根數，預設6(4hr)
+ * @param {Number|String} [opt.intervalSec=14400] 輸入每根K線之秒數，60之正整數倍且至多31536000(數值或數字字串)，預設14400(4hr)
  * @returns {Object} 回傳method對應函數之物件
  * @example
  *
- * let kp = buildKp({ myCalc: async (arr, keyIn, optMethod) => [{ period: '1bar', len: 1, vs: [] }] }, { barsPerDay: 24 })
+ * let kp = buildKp({ myCalc: async (arr, keyIn, optMethod) => [{ period: '1bar', len: 1, vs: [] }] }, { intervalSec: 3600 })
  * console.log(Object.keys(kp).length, typeof kp.rsi, typeof kp.myCalc)
  * // => 26 function function
  *
  */
 let buildKp = (calcs = {}, opt = {}) => {
-    let barsPerDay = get(opt, 'barsPerDay', 6)
-    if (!isnum(barsPerDay) || !(barsPerDay > 0)) {
-        throw new Error(`invalid barsPerDay[${barsPerDay}]`)
-    }
-    let o = (opt2 = {}, ext = {}) => ({ barsPerDay, ...opt2, ...ext })
+    let intervalSecOpt = get(opt, 'intervalSec', null)
+    let intervalSec = (intervalSecOpt === null || intervalSecOpt === undefined) ? INTERVAL_SEC_BASE : chkIntervalSec(intervalSecOpt) //給了即檢核(無效即throw), 檢測之值即使用之值
+    let o = (opt2 = {}, ext = {}) => ({ intervalSec, ...opt2, ...ext })
     let kp = {
         orig: async (arr, key, opt2 = {}) => wdt.calcOrig(arr, key, o(opt2)),
         ma: (arr, key, opt2 = {}) => wdt.calcMa(arr, key, o(opt2, { norm: false })),
@@ -362,8 +362,8 @@ let buildParams = async (cfg, opt = {}) => {
         throw new Error(`無可計算之參數定義(dropped: ${JSON.stringify(dropped)})`)
     }
 
-    //kp, 每日K線根數(cfg.barsPerDay, 4hr為6)併入每次calc呼叫, 使各calc之週期表('1day'、'12hr'…)於其他週期仍為同一段時間
-    let kp = buildKp(get(opt, 'calcs', {}), { barsPerDay: cfg.barsPerDay })
+    //kp, 每根K線之秒數(cfg.intervalSec, 4hr為14400)併入每次calc呼叫(根數為本): 各calc週期表之根數不變, 期別標籤(輸出key之period) = 根數 × 每根秒數
+    let kp = buildKp(get(opt, 'calcs', {}), { intervalSec: cfg.intervalSec })
     for (let def of defs) {
         for (let m of def.methods) {
             if (!haskey(kp, m.method)) {

@@ -5,6 +5,8 @@ import isEqual from 'lodash-es/isEqual.js'
 import map from 'lodash-es/map.js'
 import isobj from 'wsemi/src/isobj.mjs'
 import isfun from 'wsemi/src/isfun.mjs'
+import isenum from 'wsemi/src/isenum.mjs'
+import cdbl from 'wsemi/src/cdbl.mjs'
 import istime from 'wsemi/src/istime.mjs'
 import dataProvide from 'w-data-tdprovide/src/WDataTdprovide.mjs'
 import runStrategy from 'w-trade-backtest/src/runStrategy.mjs'
@@ -71,10 +73,15 @@ let checkInvariant = (data, settingsNew, summaryNew) => {
 }
 
 
-//numericSettingsOf, 檔內settings.unit之數字字串視同同值之數字後供與目標比較(經toNumericUnit〔不要求asOf與source〕轉為數值, 無效者原樣, 必不等於目標); 不改呼叫端之物件
-//  uIni不轉換: 回測套件對settings.uIni之數字字串不轉型(以原字串運算, 摘要靜默失真), 此類檔於忠實重放即為mismatch, 不會走到此處
+//numericSettingsOf, 檔內settings.uIni與settings.unit之數字字串視同同值之數字後供與目標比較(K4、K7); 不改呼叫端之物件
+//  uIni: 回測套件(1.1.43起)對settings.uIni收數字字串並轉型(與settings.unit同規則: 給數字字串與給數字之訂單與摘要逐位相同), 故忠實重放可通過; 經isenum(gt 0)與cdbl(與回測套件同一判定與轉換)轉為數值, 非有效正數者原樣(必不等於目標)
+//  unit: 經toNumericUnit〔不要求asOf與source〕轉為數值, 無效者原樣(必不等於目標)
+//  檔內uIni或unit為無效值者, 忠實重放時回測套件即拒絕(reject, 訊息不含輸入值), 於core之catch記status 'error', 不會走到此處
 let numericSettingsOf = (settings) => {
     let s = { ...settings }
+    if (isenum(s.uIni, { gt: 0 })) {
+        s.uIni = cdbl(s.uIni)
+    }
     if (s.unit !== undefined && s.unit !== null) {
         try {
             s.unit = toNumericUnit(s.unit, 'unit')
@@ -95,7 +102,7 @@ let unitsMaxOf = (summary, settings) => {
  * 建立策略庫重算之worker核心(每worker一次; 依求解時間窗快取取序列函數)
  *
  * 逐隻: ①讀策略檔(須有settings與solve之timeStart/timeEnd, 否則unsupported); ②忠實重放: 以檔內settings於求解時間窗重跑官方runStrategy, 摘要須與檔內逐欄相同(timeTest除外), 不同即mismatch; 有fitness欄而不等於現行calcFitness(settings,summary)者(舊版適應函數所算)另記fitnessStale(不擋重算);
- * ③verify模式至此為ok; dry/write模式: 檔內settings已等於目標(uIni與unit; 檔內settings.unit之數字字串與同值之數字視為相同, 以轉為數值後比較; settings.uIni為數字字串之檔不能忠實重放〔回測套件不轉型〕而為mismatch)且fitness為現行算法者為already, 否則以目標settings(檔內settings之uIni換為目標、unit設為目標)重跑, 交易筆數、已平倉筆數、勝率須與檔內相同且檔名不變(否則r8); 通過者為ok並附新內容(settings、summary、fitness換新, 其餘欄與鍵序不變); 單一策略之最大持倉名義不設門檻, 只回傳其值(uTradeAllMax1)與同時持倉之單位數(unitsMax1 = numTradeAllMax × units, 摘要無numTradeAllMax時為null)供統計
+ * ③verify模式至此為ok; dry/write模式: 檔內settings已等於目標(uIni與unit; 檔內settings.uIni與settings.unit之數字字串與同值之數字視為相同, 以轉為數值後比較, 回測套件1.1.43起對兩者皆收數字字串並轉型, 故數字字串之檔可忠實重放; settings.uIni為無效值〔非數字字串、非正數或非數值型別〕之檔於忠實重放時被回測套件拒絕, 例外即記error〔訊息不含輸入值〕、不中斷整批)且fitness為現行算法者為already〔逐位複製, 含原字串寫法〕, 否則以目標settings(檔內settings之uIni換為目標、unit設為目標)重跑, 交易筆數、已平倉筆數、勝率須與檔內相同且檔名不變(否則r8); 通過者為ok並附新內容(settings、summary、fitness換新, 其餘欄與鍵序不變); 單一策略之最大持倉名義不設門檻, 只回傳其值(uTradeAllMax1)與同時持倉之單位數(unitsMax1 = numTradeAllMax × units, 摘要無numTradeAllMax時為null)供統計
  * 檔名與檔內交易次數級距不一致之舊檔另記nameMismatch(只列、不擋; 輸出沿用原檔名); 例外一律以status 'error'回傳(不中斷worker)
  *
  * @function
@@ -166,7 +173,7 @@ let createCore = (init, deps = {}) => {
                 return { fn, status: 'ok', eqYr0, th, ...ext, ...nm }
             }
 
-            //already, 檔內settings已為目標口徑(且fitness為現行算法): 數字字串與同值之數字視為相同(以轉為數值後比較, unit之同一口徑即buildBaseUnitNotional之key相同, 記錄欄asOf、source與其他欄亦須相同)
+            //already, 檔內settings已為目標口徑(且fitness為現行算法): uIni與unit之數字字串與同值之數字視為相同(以轉為數值後比較, unit之同一口徑即buildBaseUnitNotional之key相同, 記錄欄asOf、source與其他欄亦須相同)
             let settings1 = { ...data.settings, uIni: target.uIni, unit: target.unit }
             if (isEqual(numericSettingsOf(data.settings), settings1) && !ext.fitnessStale) {
                 return { fn, status: 'already', eqYr0, eqYr1: eqYr0, th, uTradeAllMax1: data.summary.uTradeAllMax, unitsMax1: unitsMaxOf(data.summary, data.settings), ...nm }

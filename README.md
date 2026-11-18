@@ -145,7 +145,7 @@ test()
 {
     root: './data',                      //必填: 工作根(各子夾可由 fds 逐一覆寫)
     name: 'ETH', symbol: 'ETHUSDT',      //必填: 標的名稱(組序列 key 與策略識別)與交易對
-    interval: '4hr',                     //必填: K 線週期 '1m' | '5m' | '15m' | '30m' | '1hr' | '4hr'(其他週期須給 intervalSec)
+    interval: '4hr',                     //必填: K 線週期 '1m' | '5m' | '15m' | '30m' | '1hr' | '4hr'(其他週期須給 intervalSec = 每根 K 線之秒數: 60 之正整數倍且至多 31536000,數值或數字字串〔轉為數值〕;給了而無效即拋 `invalid cfg.intervalSec: must be a positive integer multiple of 60 up to 31536000`)
     timeZone: 'Asia/Taipei',             //時間字串之固定時區(與數據一致, 變更時須換新工作根)
     dayStart: '2020-01-01',              //抓取起始日
     timeBegin: '2022-07-01T00:00:00',    //數據保留起點(早於此之 K 線不寫入 ohlc), 預設 `${dayStart}T00:00:00`
@@ -176,7 +176,7 @@ settings: {
 
 給 `unit` 時:`normalizeCfg` 以 `normalizeUnit` 檢核並補齊 `buffer`／`units`(`null` 或未給皆補預設,不寫入 `null`;`rule` 三欄與 `buffer` 之數字字串於檢測通過後轉為數值、`units` 轉為整數,落地皆為數值〔`asOf`、`source` 與其他欄原樣;轉換前後 `buildBaseUnitNotional` 之 `key` 相同〕;有效性由回測套件之 `buildBaseUnitNotional` 判定 —— 與回測各路徑檢測 `settings.unit` 者同一函數:須為一般物件、數值為有效數字或數字字串、以價格 1 試算一次;錯誤訊息以 `invalid cfg.settings.unit` 起頭、不含輸入值),`uIni` 須為有效正數(數字或數字字串,通過即轉為數值;無效即 `invalid cfg.settings.uIni: must be a positive number`);普測、求解與策略庫重算之每單名義依基礎單位,策略檔之 `settings` 記錄 `uIni` 與 `unit`(交易規則與緩衝隨策略檔落地);**單一策略不設持倉門檻**:最大持倉名義(`summary.uTradeAllMax`;完整摘要另有同時持倉筆數 `numTradeAllMax`)是否超過 `uIni` 不檢、不剔除、不中止,只隨摘要落地(策略庫重算另列超過者之隻數與最大者);持倉組合是否超過本金由挑選端判定。未給 `unit`(或為 `null`)時行為與輸出不變。交易規則屬口徑:規則或緩衝改變即須重算策略庫(〈策略庫重算〉)。
 
-cfg 之鍵只認 `CFG_KEYS`,打錯即拋錯並列可用鍵;已正規化之 cfg 可再傳入(衍生鍵 `keyOhlc`、`keyIndex`、`barsPerDay` 略過).
+cfg 之鍵只認 `CFG_KEYS`,打錯即拋錯並列可用鍵;已正規化之 cfg 可再傳入(衍生鍵 `keyOhlc`、`keyIndex` 略過;原衍生鍵 `barsPerDay` 已移除,見〈限制與注意〉之 Breaking changes).`intervalSec` 以 `w-data-trade`(≥ 1.0.50)之 `chkIntervalSec` 檢核,內建週期之秒數(1m=60、5m=300、15m=900、30m=1800、1hr=3600、4hr=14400)皆通過;內建週期時以內建秒數為準,但另給之 `intervalSec` 仍須有效(給了而無效即拋,不退回預設).
 
 **外部數據(股價等)**:`source.price` 為 K 線陣列 `[{ time: 'YYYY-MM-DDTHH:mm:ss', Open, High, Low, Close, Volumn?, ... }]`(或回傳該陣列之 async 函數),欄位名與幣安現貨一致(`Volumn`、`QuoteAssetVolume`、`NumberOfTrades`、`TakerBuyBaseAssetVolume`、`TakerBuyQuoteAssetVolume`);缺少之欄位會使依賴該欄位之參數定義被整個剔除(`buildParams` 回傳之 `dropped` 列出原因),只有 OHLC 時仍有 ma／ema／vec／rsi／macd／bbpb／adx／atr／kdj／donchian／keltner／supertrend／ichimoku／vortex／klr／candle 等可用.
 
@@ -209,7 +209,12 @@ cfg 之鍵只認 `CFG_KEYS`,打錯即拋錯並列可用鍵;已正規化之 cfg �
 
 - **nm(z-score 之 avg／std)之凍結**:首次由 `opt.nmPeriod`(預設 `cfg.train`;`'all'` 為全部數據;或 `{ timeStart, timeEnd }`)之數據自算,寫入 `meta/params.json` 之 `nm`,之後每次重算參數皆沿用,使數據延長時既有策略之門檻不失真;`opt.recalibrate: true` 才重算.定義自帶 `nm` 者直接採用.
 - **index 側偏移參數之校正**:溢價指數之 OHLC 量級與價格不同(可 ≈0 或負),以 `optMethod`(`plusClose`、`subMid` 等)把 index 系列變換到與 price 同形狀.內建目錄之值為 ETHUSDT 4hr 之率定值作起點,`buildParams` 預設以 `w-data-trade` 之 `dataCalibrate` 對 price 側同名 keyOut(去尾 `Mod`)重新校正並凍結於 `meta.optMethod`;`opt.calibrateIndex: false` 直接採定義值.回傳之 `calibrated` 列出 `adopt`／`score0`／`scoreBest`.
-- **K 線週期**:每次呼叫 calc 皆併入 `barsPerDay = 86400 / intervalSec`(4hr 為 6),使 `w-data-trade`(≥ 1.0.34)之週期表於其他週期維持時間語意(`'1day'` 於 1hr K 線為 24 根;單根型態之標籤為該週期如 `'1hr'`;換算後不足 1 根之期剔除,相鄰週期四捨五入後同根數者保留不去重).`barsPerDay` 由 `buildKp` 於每次呼叫注入 opt,不放進定義之 `optMethod`,故 `dataCalibrate` 不會把它當搜尋參數.
+- **K 線週期(根數為本)**:每次呼叫 calc 皆併入 `intervalSec`(= `cfg.intervalSec`,每根 K 線之秒數;4hr 為 14400),使 `w-data-trade`(≥ 1.0.50)各 calc 之內建週期表以**根數**為準:一個參數描述的是「幾根」之線型,換週期時根數不變(`len`、`vs` 與 4hr 時相同),期別標籤(輸出檔名與參數鍵名之末段)= 根數 × 每根時長.內建表之標籤以每根 4hr 寫定(`'1day'` = 6 根、`'30day'` = 180 根),例:
+  - 均線(`ma` 系)之根數 6、12、24、42、90、180:4hr 為 `1day`、`2day`、`4day`、`7day`、`15day`、`30day`;1hr 為 `6hr`、`12hr`、`1day`、`42hr`、`90hr`、`180hr`;1day 為 `6day`、`12day`、`24day`、`42day`、`90day`、`180day`.
+  - 單根型態(`candle`、`klr`)之標籤為該週期本身(`'1hr'`、`'1day'`);任何週期下皆不剔除任何一期.
+  - 標籤規則:時間跨度為整日數者寫 `Nday`,否則整小時數者寫 `Nhr`,否則 `Nm`;不同根數於同一週期下標籤必不同.由參數鍵名之末段與 `intervalSec` 查根數用 `w-data-trade` 之 `periodInfo`(例:`periodInfo('3day', { intervalSec: 86400 })` 為 3 根).
+  - `intervalSec` 由 `buildKp` 於每次呼叫注入 opt(呼叫端給之 `optMethod` 內之 `intervalSec` 可覆寫),不放進定義之 `optMethod`,故 `dataCalibrate` 不會把它當搜尋參數;無效值於 `buildKp`／`normalizeCfg` 即拋錯,不傳入 `w-data-trade`.
+  - **暖機**:根數為本,故最長期別於任何週期下皆約需 360 根才有第 1 筆值(依 `w-data-trade` 文件:`adx` 之 `len` 180 自索引 359 起,`ichimoku` 之 `senkouB` 180 自 269,`macd` 倍率 6 自 208);日 K 線即約一年數據,**數據起點(`timeBegin`、`dayStart`)宜提前**;根數不足之期(例:日 K 線僅 100 根時之 `180day` 均線)於 `w-data-trade` 回傳空 `vs`,`buildParams` 仍寫出該期之空序列檔(`[]`)並列入 `keys`(數據過短時 4hr 亦同).
 - **自訂計算**:`opt.calcs = { myMethod: async (arr, keyIn, optMethod) => [{ period, len, vs: [{ time, ...keyOuts }] }] }` 搭配 `extraDefs` 之 `method: 'myMethod'`.
 - **外部序列**:`opt.series = { key: [{ time, param }] | async fn }` 直接寫入 `param/`(key 不可含路徑分隔符).
 - **Close-only 過濾**:`filterKeysCloseOnly(keys)`／`isKeyCloseOnly(key)` 只留由 Close 推導之因子(ma 系 + rsi／macd／bbpb);求解端以 `closeOnly: true` 啟用.
@@ -219,7 +224,7 @@ cfg 之鍵只認 `CFG_KEYS`,打錯即拋錯並列可用鍵;已正規化之 cfg �
 - `buildCache(opt)`:`w-trade-backtest` 之 `buildKLinesTpSl`,區間預設 `timeBegin` ~ K 線最末,`opt.tps`(預設 4~10,tp=sl)、`opt.modes`;設定相同且檔存在時不重建(`changed: false`),`opt.force` 重建.
 - `sweepSingle(opt)`:對每個因子跑 long/short × tpsl × th × sym 全掃描,每方向選 best 等效年化(已平倉筆數須大於 `numTradeFinMin`,預設 50)輸出 raw 策略;`opt.limit`(前 N 個因子)、`opt.filterKeys(keys)`、`opt.takeLimit`(worker 數)、`opt.useAssm`／`opt.usePlateau`(訓練期穩定度 gate,預設關)、`opt.cleanFdOut`(預設清空輸出夾)、`opt.onProgress`.門檻範圍 `opt.thsLong`(預設 0~2)、`opt.thsShort`(預設 -2~0)、`opt.tpsls`.
 - `sweepPairs(opt)`:讀 `strategiesP1` 之單因子策略,同向兩兩配對掃 {and, or} × {tpsl_A, tpsl_B},`eqYr > eqYrMin`(預設 15)才輸出;`opt.dedupOverlap`(0~1,進場 Jaccard 大於此值視同質只留高分;預設關)、`opt.limit`、`opt.fdF1`／`opt.fdTar`.
-- 兩者皆以訓練期為等效年化基準,出場裁切於訓練期終點之下一根(`exitCut`),結果不隨快取延長而漂移;穩定度 gate 之窗長(90 天／30 天)依 `barsPerDay` 換算為根數.
+- 兩者皆以訓練期為等效年化基準,出場裁切於訓練期終點之下一根(`exitCut`),結果不隨快取延長而漂移;穩定度 gate 之窗長(90 天／30 天)以時間界定,依每日 K 線根數(`86400 / intervalSec`,於 `sweepCfgOf` 內自算)換算為根數(與上述期別之根數為本無關).
 - 給 `settings.unit` 時:每單名義依基礎單位、策略檔之 `settings` 記錄 `unit`;挑選依等效年化等與本金無關之量,不因 `uIni` 而變(最大持倉名義不設門檻);回傳與進度之形狀不變.
 
 ## 6. 最佳化求解(策略庫擴建)
@@ -240,7 +245,7 @@ cfg 之鍵只認 `CFG_KEYS`,打錯即拋錯並列可用鍵;已正規化之 cfg �
 `recomputeStrategies(opt)`(`createPipeline(cfg).recomputeStrategies`):既有策略**不重新求解**,逐檔把 `settings` 改記研究用本金 `uIni` 與基礎單位 `unit`、摘要依新口徑重算後寫至另一夾(驗收後由使用端換夾).
 
 - **忠實重放先行**:逐檔以檔內 `settings` 於其求解時間窗(`solve.timeStart`～`solve.timeEnd`)重跑官方 `runStrategy`,摘要須與檔內逐欄相同(`timeTest` 除外);只有通過者才以新口徑重算.不符者為 `mismatch`(列出欄名).檔內 `fitness` 與現行 `calcFitness(settings, summary)` 不同者(舊版適應函數所算)另記 `fitnessStale`,不擋重算,重算時以現行 `calcFitness` 重寫.
-- **新口徑**:`settings` 之 `uIni` 換為目標、`unit` 設為目標(其餘欄與鍵序不變,`unit` 接於末);`summary` 為新 `settings` 之重放;`fitness` 重算;其餘欄(`tid`、`tkid`、`conds`、`solve` 等)與鍵序不變.斷言交易筆數、已平倉筆數、勝率與檔名不變(否則 `r8`).最大持倉名義不設門檻:超過目標 `uIni` 者照常重算寫出,只列於統計.檔名與檔數不變(不新增、不刪除、不改名).
+- **新口徑**:`settings` 之 `uIni` 換為目標、`unit` 設為目標(其餘欄與鍵序不變,`unit` 接於末);`summary` 為新 `settings` 之重放;`fitness` 重算;其餘欄(`tid`、`tkid`、`conds`、`solve` 等)與鍵序不變.斷言交易筆數、已平倉筆數、勝率與檔名不變(否則 `r8`).最大持倉名義不設門檻:超過目標 `uIni` 者照常重算寫出,只列於統計.檔名與檔數不變(不新增、不刪除、不改名).檔內 `settings` 已等於目標且 `fitness` 為現行算法者為 `already`(`write` 時逐位複製):`settings.uIni` 與 `settings.unit` 之數字字串視同同值之數字(例:檔內 `uIni: '10000'` 與目標 `10000` 視為相同,`already` 者連原字串寫法一併複製;與目標不同值者依目標重算,寫出之 `uIni` 為目標之數值);`settings.uIni` 為無效值(非數字字串、非正數或非數值型別)者於忠實重放時即被 `w-trade-backtest` 拒絕,記為 `error`(訊息不含輸入值),`verify`／`dry` 照常跑完並列出、`write` 依下述中止規則停止.上列對數字字串之收受須 `w-trade-backtest` ≥ 1.1.43(`package.json` 已定此下限;更舊版對 `settings.uIni` 之數字字串不轉型而以原字串運算,摘要失真).
 - **模式**:`mode: 'verify'`(預設;只做忠實重放)、`'dry'`(重算、只出統計、不寫檔)、`'write'`(寫至 `opt.fdOut`,**須明給**,不提供原地寫回;以暫存檔再改名寫入,目標被短暫開啟時重試數次;不做 fsync).`write` 於任一不合格(`mismatch`、`r8`、`unsupported`、`error`)即中止(不再寫檔並列出;不可關閉,給 `stopOnError: false` 即拋錯),`verify`／`dry` 預設跑完並列出全部(`opt.stopOnError` 可改).目標口徑預設取 `cfg.settings`(`opt.uIni`／`opt.unit` 給予時優先;建議由使用端明給,使管線之 `settings` 於換夾前不必先改).
 - **寫出之安全**(不得毀損或覆寫原策略庫;下列檢查皆於寫入來源夾與輸出夾之前,違反即拋錯):
   - `fdOut` 與 `fdIn` 為同一夾或互為上下層即拒.判定以 `fs.realpathSync.native` 正規化(`fdOut` 尚不存在時取其最近之既存上層再接其餘段;Windows 不分大小寫),另以 `dev`＋`ino` 比對目錄本體,故大小寫不同、8.3 短名、目錄連結(junction／symlink)之別名皆拒.檔案識別為 0 之檔案系統(部分網路分享、虛擬磁碟)不以識別比對、只用正規路徑;實體路徑取不到(`realpath` 拋錯)即拒絕執行並說明.建立 `fdOut` 之後再核一次(此時目錄本體之比對才生效,並封住檢查之後才被建成連結之先查後做).
@@ -268,20 +273,25 @@ console.log(v.counts, d.cross.nDown, d.cross.nThFallback, w.ok, w.namesSame)
 
 | 測試檔 | 內容 |
 |---|---|
-| `unit-cfg` | 設定正規化:必填、週期與 `intervalSec`、預設值、`fds` 覆寫、外部數據與 `useIndex`、`train` 檢核、不認得之鍵、`barsPerDay`、`serializableCfg` |
+| `unit-cfg` | 設定正規化:必填、週期與 `intervalSec`(內建週期之值皆通過 `w-data-trade` 之 `chkIntervalSec`;數字字串轉為數值;給了而無效即拋、訊息不含輸入值)、預設值、`fds` 覆寫、外部數據與 `useIndex`、`train` 檢核、不認得之鍵、已移除之 `barsPerDay` 不產出亦不收、`serializableCfg` |
 | `unit-buildOhlc` | 外部陣列／函數來源、`timeBegin` 過濾、未收棒剔除、index 截齊、欄位檢核、meta 之 `changed` |
-| `unit-buildParams` | 內建目錄規模、key 命名、nm 凍結／沿用／重算、`useIndex` 與缺欄位之剔除、index 校正之凍結、`extraDefs`＋`calcs`、`series`、自帶 nm、1hr K 線之週期換算 |
+| `unit-buildParams` | 內建目錄規模、key 命名、nm 凍結／沿用／重算、`useIndex` 與缺欄位之剔除、index 校正之凍結、`extraDefs`＋`calcs`、`series`、自帶 nm、4hr／1hr／1day K 線之期別標籤與根數(手寫期望值)、`buildKp` 之 `intervalSec`(預設、覆寫、數字字串、無效即拋、舊選項 `barsPerDay` 不收;預設與直接呼叫 `w-data-trade` 逐位相同;1hr 之 index 校正與寫出皆併入) |
 | `unit-sweep` | `buildCache`(跳過／強制)、`sweepCfgOf`、`sweepSingle`(格式、每因子每方向至多一檔、`filterKeys`、`cleanFdOut`)、`sweepPairs`(配對、`opr`、去重、`eqYrMin`) |
 | `unit-solve` | close-only 規則與 `comps` 解析、`prepareSolve` 之分類與過濾、in-process 事件與策略檔格式、各停止條件、`mode` 與 `timeEndByMode`、`workers` 之停止與收尾、函數選項與不認得之鍵、`status`、資源閘 `gate`(呼叫序列與次數、閘內延遲推後該輪、閘拋錯、起跑前停止條件、閘等待期間停止之不懸置) |
 | `unit-baseUnit` | 基礎單位 `settings.unit`:`normalizeUnit` 與 `normalizeCfg` 之檢核與補齊(`null` 補預設、數字字串轉為數值且轉換前後 `key` 相同、非一般物件拒)、`sweepCfgOf`、`sweepSingle`／`sweepPairs`／`solve`(in-process、`workers: 1`)之 `unit` 落地與摘要、加速核心依 `unit` 評估(與 `runStrategy` 之對應欄相同)、單一策略不設持倉門檻(研究用本金小於最大持倉名義時普測之挑選與求解之入庫不變、回傳與事件之形狀不變)、未給 `unit` 時不變 |
-| `unit-recompute` | 策略庫重算:`verify`／`dry`／`write` 三模式、忠實重放與其鑑別(竄改摘要與 `fitness`、無 `solve`、壞檔)、新口徑之 `settings`／`summary`／`fitness` 與其餘欄不變、檔名與檔數不變、跨門檻清單、最大持倉名義超過 `uIni` 者照常重算並只列統計(隻數、最大者、單位數、清單)、續跑與 `already`、輸出檔被刪或竄改後續跑重做、journal 末行半截、殘留暫存檔、鎖檔(原子建立、使用中拒、內容無法讀出而很新者視為使用中、殘留接手時之保護檔與鎖檔全程存在、鎖檔無法讀取、接手之競態、多個子行程同時建立與同時接手時恰一個取得)、檔內 `unit` 之數字字串視為同一口徑(`already`)與記錄欄不同者重算、來源檔已變者續跑重做、縮小選取範圍之續跑、例外中止之部分報告、`noThreshold`／`nThFallback`、`nameMismatch`、寫出之安全(同夾、大小寫別名〔Windows〕、目錄連結別名、互為上下層、`fdReport` 位置、`fdOut` 非空、建立 `fdOut` 後被換成連結〔先查後做〕、實體路徑取不到皆拒,且每案〔含續跑〕原策略庫逐位不變)、別名判定之兩法各自之單元測試(正規路徑、目錄本體、識別為 0、實體路徑拋錯)、選項檢核(含數字字串之 `uIni`／`unit`／`thEqYr`／`takeLimit`／`limit` 轉為數值、`invalid opt.<名稱>: must be …` 訊息不含輸入值) |
+| `unit-recompute` | 策略庫重算:`verify`／`dry`／`write` 三模式、忠實重放與其鑑別(竄改摘要與 `fitness`、無 `solve`、壞檔)、新口徑之 `settings`／`summary`／`fitness` 與其餘欄不變、檔名與檔數不變、跨門檻清單、最大持倉名義超過 `uIni` 者照常重算並只列統計(隻數、最大者、單位數、清單)、續跑與 `already`、輸出檔被刪或竄改後續跑重做、journal 末行半截、殘留暫存檔、鎖檔(原子建立、使用中拒、內容無法讀出而很新者視為使用中、殘留接手時之保護檔與鎖檔全程存在、鎖檔無法讀取、接手之競態、多個子行程同時建立與同時接手時恰一個取得)、檔內 `unit` 之數字字串視為同一口徑(`already`)與記錄欄不同者重算、來源檔已變者續跑重做、縮小選取範圍之續跑、例外中止之部分報告、`noThreshold`／`nThFallback`、`nameMismatch`、寫出之安全(同夾、大小寫別名〔Windows〕、目錄連結別名、互為上下層、`fdReport` 位置、`fdOut` 非空、建立 `fdOut` 後被換成連結〔先查後做〕、實體路徑取不到皆拒,且每案〔含續跑〕原策略庫逐位不變)、別名判定之兩法各自之單元測試(正規路徑、目錄本體、識別為 0、實體路徑拋錯)、選項檢核(含數字字串之 `uIni`／`unit`／`thEqYr`／`takeLimit`／`limit` 轉為數值、`invalid opt.<名稱>: must be …` 訊息不含輸入值、檔內 `settings.uIni` 之數字字串〔同值為 `already`、不同值依目標重算、無效值為 `error` 且不中斷整批〕) |
 | `unit-package` | 套件結構與發布面:package.json、依賴對帳與按需引入、`toolg/gDistRollup.mjs` 之 external 寫法、npm 打包清單、`g.mjs` 離線實跑與 README 同步、JSDoc 覆蓋與範例實跑、發布內容不含通用機敏樣式(磁碟機路徑、IPv4、權杖) |
 
 共用測試件(隨包發布,下游可取用):`test/tools/synthKit.mjs`(合成 K 線與設定)、`test/tools/tmpdir.mjs`、`test/tools/jsdocExamples.mjs`;`test/tools/lockChild.mjs` 為 `unit-recompute` 之子行程(多個行程同時取鎖);`test/tools/lockRaceProbe.mjs` 為鎖檔之壓力探測(多個子行程同時接手同一殘留鎖,量持有者數與 `staleLock` 之分布);`test/tools/abPipeline.mjs` 為前後對拍工具(未給 `settings.unit` 時各階段之行為、回傳、事件與策略檔須逐位不變).
 
 ## 9. 限制與注意
 
-- `w-data-trade` 各 calc 之週期表以 4hr K 線為基準,本套件以 `barsPerDay` 併入每次呼叫換算(需 ≥ 1.0.34;舊版無此選項時週期標籤只代表根數).`w-data-trade` 對無效之 `barsPerDay` 會靜默改用 4hr 基準,本套件於 `normalizeCfg` 以 `interval`／`intervalSec` 檢核後才換算,不會傳入無效值.
+- **Breaking changes(配合 `w-data-trade` 1.0.50 之根數為本;`opt.barsPerDay` 已於該版移除)**:
+  - `cfg.barsPerDay`(衍生欄)與 `buildKp` 之 `opt.barsPerDay` 已移除,改為 `cfg.intervalSec`／`opt.intervalSec`(每根 K 線之秒數);傳入已移除之 `barsPerDay` 為不認得之鍵(`normalizeCfg` 拋錯;`buildKp` 視為未知鍵忽略),不保留相容路徑.把舊版 `normalizeCfg` 之回傳物件(含 `barsPerDay`)再傳入新版會因不認得之鍵而拋錯,須重新由原始設定正規化.
+  - **非 4hr 週期之因子鍵與值改變**:根數不變、期別標籤依「根數 × 每根時長」換算(例:1hr 之均線由 `1day`〔24 根〕、`2day`〔48 根〕…`30day`〔720 根〕改為 `6hr`〔6 根〕、`12hr`、`1day`〔24 根〕、`42hr`、`90hr`、`180hr`〔180 根〕),各期之序列值隨根數而變.**以舊版建立之非 4hr 因子庫須重建**(因子、普測與求解之策略檔所引因子鍵皆須重產),**不可與新版混用**;4hr 之鍵集合、鍵序與數值與舊版逐位相同.
+  - **暖機**:根數為本下最長期別約需 360 根,資料起點宜提前(見〈參數〉之 K 線週期).
+  - `cfg.intervalSec` 現依 `w-data-trade` 之判準檢核(60 之正整數倍且至多 31536000;數字字串轉為數值),給了而無效即拋 `invalid cfg.intervalSec: must be a positive integer multiple of 60 up to 31536000`(內建週期時另給之無效值亦拋;舊版於內建週期時忽略另給之值〔含 0、空字串、`NaN`〕,非內建週期時只檢核為大於 0 之數值〔數字字串雖通過但不轉型,非整數與非 60 之倍數亦通過〕,故設定檔中帶佔位值者升級後會於建立管線時拋錯).`package.json` 之 `w-data-trade` 最低版為 ^1.0.50.
+- `w-data-trade` 1.0.50 起 `opt.intervalSec` 給了而無效即拒絕(不退回預設 4hr);本套件於 `normalizeCfg` 與 `buildKp` 先以同一判準檢核並轉為數值,不會傳入無效值.
 - `fetchData` 只支援幣安現貨 K 線與溢價指數 K 線,且 `w-dwdata-binance` 之 interval 只有 `1m`、`5m`、`15m`、`30m`、`1hr`、`4hr`;其他來源或週期請自行取得 K 線陣列經 `source` 給入.
 - 同一工作根之 `timeZone`、`interval` 與 `timeBegin` 不可變更(變更即換新工作根),`meta/params.json` 之凍結值亦綁該工作根.
 - `sweepSingle`／`sweepPairs` 預設清空各自輸出夾後重產;`solve` 之策略庫為累積式.
