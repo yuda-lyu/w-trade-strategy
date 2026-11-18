@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>recompute/recomputeStrategies_core.mjs - Documentation</title>
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#CATALOG">CATALOG</a></li><li><a href="global.html#CFG_KEYS">CFG_KEYS</a></li><li><a href="global.html#COMPS_ALL">COMPS_ALL</a></li><li><a href="global.html#DERIVED_KEYS">DERIVED_KEYS</a></li><li><a href="global.html#ENDPOINT_INDEX">ENDPOINT_INDEX</a></li><li><a href="global.html#ENDPOINT_PRICE">ENDPOINT_PRICE</a></li><li><a href="global.html#EVENT_KEYS">EVENT_KEYS</a></li><li><a href="global.html#FDS">FDS</a></li><li><a href="global.html#HEADS_INDEX">HEADS_INDEX</a></li><li><a href="global.html#HEADS_PRICE">HEADS_PRICE</a></li><li><a href="global.html#INTERVALS">INTERVALS</a></li><li><a href="global.html#INVARIANT_KEYS">INVARIANT_KEYS</a></li><li><a href="global.html#LOCK_FRESH_MS">LOCK_FRESH_MS</a></li><li><a href="global.html#LOCK_NAME">LOCK_NAME</a></li><li><a href="global.html#RECOMPUTE_FAIL_STATUSES">RECOMPUTE_FAIL_STATUSES</a></li><li><a href="global.html#RECOMPUTE_MODES">RECOMPUTE_MODES</a></li><li><a href="global.html#SOLVE_OPT_KEYS">SOLVE_OPT_KEYS</a></li><li><a href="global.html#TPS_DEFAULT">TPS_DEFAULT</a></li><li><a href="global.html#WTradeStrategy">WTradeStrategy</a></li><li><a href="global.html#acquireRecomputeLock">acquireRecomputeLock</a></li><li><a href="global.html#allowedComps">allowedComps</a></li><li><a href="global.html#assmDefaultOf">assmDefaultOf</a></li><li><a href="global.html#binomTailGE">binomTailGE</a></li><li><a href="global.html#buildBaseBars">buildBaseBars</a></li><li><a href="global.html#buildCache">buildCache</a></li><li><a href="global.html#buildKp">buildKp</a></li><li><a href="global.html#buildOhlc">buildOhlc</a></li><li><a href="global.html#buildP2Data">buildP2Data</a></li><li><a href="global.html#buildParams">buildParams</a></li><li><a href="global.html#calcOrdersStability">calcOrdersStability</a></li><li><a href="global.html#canonOf">canonOf</a></li><li><a href="global.html#checkInvariant">checkInvariant</a></li><li><a href="global.html#classifyKeys">classifyKeys</a></li><li><a href="global.html#cleanFolder">cleanFolder</a></li><li><a href="global.html#compsCloseOnly">compsCloseOnly</a></li><li><a href="global.html#countJson">countJson</a></li><li><a href="global.html#createCore">createCore</a></li><li><a href="global.html#createPipeline">createPipeline</a></li><li><a href="global.html#createSolver">createSolver</a></li><li><a href="global.html#dedupStrategies">dedupStrategies</a></li><li><a href="global.html#diffSummary">diffSummary</a></li><li><a href="global.html#ensureFolder">ensureFolder</a></li><li><a href="global.html#eqYrOf">eqYrOf</a></li><li><a href="global.html#fetchBinance">fetchBinance</a></li><li><a href="global.html#fieldsOf">fieldsOf</a></li><li><a href="global.html#filterKeysCloseOnly">filterKeysCloseOnly</a></li><li><a href="global.html#fpCacheOf">fpCacheOf</a></li><li><a href="global.html#funAddKeysInVbs">funAddKeysInVbs</a></li><li><a href="global.html#idOf">idOf</a></li><li><a href="global.html#intervalSec">intervalSec</a></li><li><a href="global.html#isBarComplete">isBarComplete</a></li><li><a href="global.html#isKeyCloseOnly">isKeyCloseOnly</a></li><li><a href="global.html#isWithin">isWithin</a></li><li><a href="global.html#listJsonKeys">listJsonKeys</a></li><li><a href="global.html#makeFastEngine">makeFastEngine</a></li><li><a href="global.html#makeOtt">makeOtt</a></li><li><a href="global.html#nmKeyOf">nmKeyOf</a></li><li><a href="global.html#normalizeCfg">normalizeCfg</a></li><li><a href="global.html#normalizeExternal">normalizeExternal</a></li><li><a href="global.html#normalizeUnit">normalizeUnit</a></li><li><a href="global.html#nowIso">nowIso</a></li><li><a href="global.html#parfor">parfor</a></li><li><a href="global.html#parseComps">parseComps</a></li><li><a href="global.html#prepareSolve">prepareSolve</a></li><li><a href="global.html#quantilesOf">quantilesOf</a></li><li><a href="global.html#r">r</a></li><li><a href="global.html#readCsvFolder">readCsvFolder</a></li><li><a href="global.html#readF1Factors">readF1Factors</a></li><li><a href="global.html#readJsonOr">readJsonOr</a></li><li><a href="global.html#recomputeStrategies">recomputeStrategies</a></li><li><a href="global.html#relationOf">relationOf</a></li><li><a href="global.html#releaseRecomputeLock">releaseRecomputeLock</a></li><li><a href="global.html#resolveNmPeriod">resolveNmPeriod</a></li><li><a href="global.html#runRound">runRound</a></li><li><a href="global.html#serializableCfg">serializableCfg</a></li><li><a href="global.html#sliceByPeriod">sliceByPeriod</a></li><li><a href="global.html#solve">solve</a></li><li><a href="global.html#sweepCfgOf">sweepCfgOf</a></li><li><a href="global.html#sweepPairs">sweepPairs</a></li><li><a href="global.html#sweepSingle">sweepSingle</a></li><li><a href="global.html#toNumericUnit">toNumericUnit</a></li><li><a href="global.html#validateDef">validateDef</a></li><li><a href="global.html#writeJson">writeJson</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">recompute/recomputeStrategies_core.mjs</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import fs from 'fs'
+import path from 'path'
+import get from 'lodash-es/get.js'
+import isEqual from 'lodash-es/isEqual.js'
+import map from 'lodash-es/map.js'
+import isobj from 'wsemi/src/isobj.mjs'
+import isfun from 'wsemi/src/isfun.mjs'
+import istime from 'wsemi/src/istime.mjs'
+import dataProvide from 'w-data-tdprovide/src/WDataTdprovide.mjs'
+import runStrategy from 'w-trade-backtest/src/runStrategy.mjs'
+import calcFitness from 'w-trade-solve/src/calcFitness.mjs'
+import genStrategyFileName from 'w-trade-solve/src/genStrategyFileName.mjs'
+import p2r from 'w-trade-solve/src/p2r.mjs'
+import { toNumericUnit } from '../cfg.mjs'
+import { makeOtt } from '../util/ott.mjs'
+
+
+/**
+ * 策略庫重算時逐隻斷言不變之摘要欄(交易筆數、已平倉筆數、勝率)
+ *
+ * @type {Array}
+ */
+let INVARIANT_KEYS = Object.freeze(['numTrade', 'numTradeFin', 'rWin'])
+
+
+/**
+ * 比對兩份回測摘要之逐欄差異(timeTest為回測執行時刻, 不比)
+ *
+ * 各欄以JSON序列化後比對(數值以最短十進位表示, 與策略檔之內容同口徑)；一方缺欄亦列為差異
+ *
+ * @function
+ * @param {Object} a 輸入摘要物件(例如策略檔所存者)
+ * @param {Object} b 輸入摘要物件(例如重放所得者)
+ * @returns {Array} 回傳不同之欄名字串陣列(依a之欄序, 其後為b獨有之欄)
+ * @example
+ *
+ * console.log(diffSummary({ timeTest: 't1', numTrade: 3, rWin: '50.00%' }, { timeTest: 't2', numTrade: 3, rWin: '66.67%', uTradeAllMax: 2 }))
+ * // => [ 'rWin', 'uTradeAllMax' ]
+ *
+ */
+let diffSummary = (a, b) => {
+    let ks = [...Object.keys(a || {}), ...Object.keys(b || {}).filter((k) => !Object.prototype.hasOwnProperty.call(a || {}, k))]
+    return ks.filter((k) => k !== 'timeTest' &amp;&amp; JSON.stringify(get(a, k)) !== JSON.stringify(get(b, k)))
+}
+
+
+/**
+ * 重算前後之識別不變檢查: 交易筆數、已平倉筆數、勝率(INVARIANT_KEYS)須與原摘要相同，且以新摘要所組之檔名須與以原摘要所組者相同
+ *
+ * @function
+ * @param {Object} data 輸入原策略檔內容(含name、interval、mode、conds或keys、settings、summary)
+ * @param {Object} settingsNew 輸入新口徑之settings
+ * @param {Object} summaryNew 輸入新口徑之摘要
+ * @returns {Array} 回傳不同之項目字串陣列(欄名, 檔名不同時另含'(fileName)')，空陣列代表不變
+ * @example
+ *
+ * let data = { name: 'ETH', interval: '4hr', mode: 'long', keys: ['k1'], settings: { uIni: 1000 }, summary: { numTrade: 30, numTradeFin: 29, rWin: '60.00%' } }
+ * console.log(checkInvariant(data, { uIni: 10000 }, { numTrade: 30, numTradeFin: 29, rWin: '60.00%' }), checkInvariant(data, { uIni: 10000 }, { numTrade: 3, numTradeFin: 29, rWin: '61.00%' }))
+ * // => [] [ 'numTrade', 'rWin', '(fileName)' ]
+ *
+ */
+let checkInvariant = (data, settingsNew, summaryNew) => {
+    let keys = Array.isArray(data.keys) ? data.keys : map(data.conds, 'key')
+    let bad = INVARIANT_KEYS.filter((k) => JSON.stringify(get(summaryNew, k)) !== JSON.stringify(get(data, `summary.${k}`)))
+    let fnNew = genStrategyFileName(data.name, data.interval, data.mode, keys, settingsNew, summaryNew)
+    let fnOld = genStrategyFileName(data.name, data.interval, data.mode, keys, data.settings, data.summary)
+    if (fnNew !== fnOld) {
+        bad.push('(fileName)')
+    }
+    return bad
+}
+
+
+//numericSettingsOf, 檔內settings.unit之數字字串視同同值之數字後供與目標比較(經toNumericUnit〔不要求asOf與source〕轉為數值, 無效者原樣, 必不等於目標); 不改呼叫端之物件
+//  uIni不轉換: 回測套件對settings.uIni之數字字串不轉型(以原字串運算, 摘要靜默失真), 此類檔於忠實重放即為mismatch, 不會走到此處
+let numericSettingsOf = (settings) => {
+    let s = { ...settings }
+    if (s.unit !== undefined &amp;&amp; s.unit !== null) {
+        try {
+            s.unit = toNumericUnit(s.unit, 'unit')
+        }
+        catch (err) {}
+    }
+    return s
+}
+
+//unitsMaxOf, 全期最大同時持倉之單位數(同時持倉筆數numTradeAllMax × 每單之單位數), 摘要無numTradeAllMax時為null
+let unitsMaxOf = (summary, settings) => {
+    let n = get(summary, 'numTradeAllMax', null)
+    return Number.isFinite(n) ? n * Number(get(settings, 'unit.units', 1)) : null //units可為整數字串(回測套件轉型)
+}
+
+
+/**
+ * 建立策略庫重算之worker核心(每worker一次; 依求解時間窗快取取序列函數)
+ *
+ * 逐隻: ①讀策略檔(須有settings與solve之timeStart/timeEnd, 否則unsupported); ②忠實重放: 以檔內settings於求解時間窗重跑官方runStrategy, 摘要須與檔內逐欄相同(timeTest除外), 不同即mismatch; 有fitness欄而不等於現行calcFitness(settings,summary)者(舊版適應函數所算)另記fitnessStale(不擋重算);
+ * ③verify模式至此為ok; dry/write模式: 檔內settings已等於目標(uIni與unit; 檔內settings.unit之數字字串與同值之數字視為相同, 以轉為數值後比較; settings.uIni為數字字串之檔不能忠實重放〔回測套件不轉型〕而為mismatch)且fitness為現行算法者為already, 否則以目標settings(檔內settings之uIni換為目標、unit設為目標)重跑, 交易筆數、已平倉筆數、勝率須與檔內相同且檔名不變(否則r8); 通過者為ok並附新內容(settings、summary、fitness換新, 其餘欄與鍵序不變); 單一策略之最大持倉名義不設門檻, 只回傳其值(uTradeAllMax1)與同時持倉之單位數(unitsMax1 = numTradeAllMax × units, 摘要無numTradeAllMax時為null)供統計
+ * 檔名與檔內交易次數級距不一致之舊檔另記nameMismatch(只列、不擋; 輸出沿用原檔名); 例外一律以status 'error'回傳(不中斷worker)
+ *
+ * @function
+ * @param {Object} init 輸入{fdIn,fdOhlc,fdParam,timeZone,mode,target}，mode為'verify'、'dry'或'write'，target為{uIni,unit}(verify時可為null)
+ * @param {Object} [deps={}] 輸入可替換之相依{runStrategy}(只供直接呼叫之測試注入; worker經workerData建立時不給)，預設{}
+ * @returns {Function} 回傳async函數core(job) => 結果物件{fn,status,...}，job為{fn}
+ * @example
+ * need test in nodejs.
+ *
+ * let core = createCore({ fdIn, fdOhlc, fdParam, timeZone: 'Asia/Taipei', mode: 'dry', target: { uIni: 10000, unit } })
+ * let r = await core({ fn: 'long_12_0123456789abcdef.json' })
+ */
+let createCore = (init, deps = {}) => {
+
+    let run = isfun(get(deps, 'runStrategy', null)) ? deps.runStrategy : runStrategy
+    let ott = makeOtt(init.timeZone)
+    let provideData = dataProvide(init.fdOhlc, init.fdParam)
+    let mode = init.mode
+    let target = init.target
+
+    //fgsOf, 依求解時間窗快取取序列函數(與estimKeys之取法相同)
+    let fgsCache = new Map()
+    let fgsOf = (ts, te) => {
+        let k = `${ts}|${te}`
+        let p = fgsCache.get(k)
+        if (!p) {
+            p = provideData.buildGetTimeSeriesByTimeRange(ts, te)
+            fgsCache.set(k, p)
+        }
+        return p
+    }
+
+    let core = async (job) => {
+        let fn = get(job, 'fn', '')
+        try {
+
+            //data
+            let data = JSON.parse(fs.readFileSync(path.resolve(init.fdIn, fn), 'utf8'))
+            let ts = get(data, 'solve.timeStart', '')
+            let te = get(data, 'solve.timeEnd', '')
+            if (!isobj(get(data, 'settings', null)) || !isobj(get(data, 'summary', null)) || !istime(ts) || !istime(te)) {
+                return { fn, status: 'unsupported', detail: '缺settings、summary或solve.timeStart/timeEnd(非求解所落地之策略檔)' }
+            }
+            let fgs = await fgsOf(ts, te)
+            let eqYr0 = p2r(get(data, 'summary.rEquivalentCumuProfitOrLossFinalNormYear', ''))
+            let th = get(data, 'solve.thREquivalentCumuProfitOrLossFinalNormYear', null)
+
+            //nm, 檔名與檔內交易次數級距不一致之舊檔(只列, 不擋; 輸出沿用原檔名)
+            let keys = Array.isArray(data.keys) ? data.keys : map(data.conds, 'key')
+            let nm = genStrategyFileName(data.name, data.interval, data.mode, keys, data.settings, data.summary) !== fn ? { nameMismatch: true } : {}
+
+            //忠實重放: 以檔內settings重跑, 摘要須與檔內逐欄相同
+            let r0 = await run(ott, data, fgs)
+            let diff0 = diffSummary(data.summary, r0.summary)
+            if (diff0.length > 0) {
+                return { fn, status: 'mismatch', diffFields: diff0, detail: diff0.slice(0, 5).map((k) => `${k}: ${JSON.stringify(data.summary[k])} → ${JSON.stringify(r0.summary[k])}`).join('; '), eqYr0, th, ...nm }
+            }
+
+            //fitnessStale, 檔內fitness與現行calcFitness(檔內settings,檔內summary)不同(舊版適應函數所算): 不擋重算(重算時以現行calcFitness重寫), 只記錄
+            let ext = {}
+            if (Object.prototype.hasOwnProperty.call(data, 'fitness')) {
+                let f0 = calcFitness(data.settings, data.summary)
+                if (data.fitness !== f0) {
+                    ext = { fitnessStale: true, fitness0: data.fitness, fitnessNow: f0 }
+                }
+            }
+            if (mode === 'verify') {
+                return { fn, status: 'ok', eqYr0, th, ...ext, ...nm }
+            }
+
+            //already, 檔內settings已為目標口徑(且fitness為現行算法): 數字字串與同值之數字視為相同(以轉為數值後比較, unit之同一口徑即buildBaseUnitNotional之key相同, 記錄欄asOf、source與其他欄亦須相同)
+            let settings1 = { ...data.settings, uIni: target.uIni, unit: target.unit }
+            if (isEqual(numericSettingsOf(data.settings), settings1) &amp;&amp; !ext.fitnessStale) {
+                return { fn, status: 'already', eqYr0, eqYr1: eqYr0, th, uTradeAllMax1: data.summary.uTradeAllMax, unitsMax1: unitsMaxOf(data.summary, data.settings), ...nm }
+            }
+
+            //新口徑重算
+            let r1 = await run(ott, { ...data, settings: settings1 }, fgs)
+            let sm1 = r1.summary
+            let eqYr1 = p2r(get(sm1, 'rEquivalentCumuProfitOrLossFinalNormYear', ''))
+            let bad = checkInvariant(data, settings1, sm1)
+            if (bad.length > 0) {
+                return { fn, status: 'r8', diffFields: bad, detail: bad.map((k) => `${k}: ${JSON.stringify(data.summary[k])} → ${JSON.stringify(sm1[k])}`).join('; '), eqYr0, eqYr1, th, ...nm }
+            }
+
+            //out, settings、summary、fitness換新, 其餘欄與鍵序不變
+            let out = { ...data, settings: settings1, summary: sm1 }
+            if (Object.prototype.hasOwnProperty.call(data, 'fitness')) {
+                out.fitness = calcFitness(settings1, sm1)
+            }
+            let r = { fn, status: 'ok', diffFields: diffSummary(data.summary, sm1), eqYr0, eqYr1, th, uTradeAllMax1: sm1.uTradeAllMax, unitsMax1: unitsMaxOf(sm1, settings1), ...ext, ...nm }
+            if (mode === 'write') {
+                r.out = out
+            }
+            return r
+        }
+        catch (err) {
+            return { fn, status: 'error', detail: String((err &amp;&amp; err.message) || err) }
+        }
+    }
+
+    return core
+}
+
+
+export { INVARIANT_KEYS, diffSummary, checkInvariant }
+export default createCore
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Wed Nov 18 2026 09:21:43 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+
+
+</body>
+</html>
