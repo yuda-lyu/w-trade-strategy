@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>util/basis.mjs - Documentation</title>
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#BASIS_FILE">BASIS_FILE</a></li><li><a href="global.html#BASIS_GUARD">BASIS_GUARD</a></li><li><a href="global.html#CATALOG">CATALOG</a></li><li><a href="global.html#CFG_KEYS">CFG_KEYS</a></li><li><a href="global.html#COMPS_ALL">COMPS_ALL</a></li><li><a href="global.html#DERIVED_KEYS">DERIVED_KEYS</a></li><li><a href="global.html#ENDPOINT_INDEX">ENDPOINT_INDEX</a></li><li><a href="global.html#ENDPOINT_PRICE">ENDPOINT_PRICE</a></li><li><a href="global.html#EVENT_KEYS">EVENT_KEYS</a></li><li><a href="global.html#FDS">FDS</a></li><li><a href="global.html#HEADS_INDEX">HEADS_INDEX</a></li><li><a href="global.html#HEADS_PRICE">HEADS_PRICE</a></li><li><a href="global.html#INTERVALS">INTERVALS</a></li><li><a href="global.html#INTERVAL_SEC_DEFAULT">INTERVAL_SEC_DEFAULT</a></li><li><a href="global.html#INVARIANT_KEYS">INVARIANT_KEYS</a></li><li><a href="global.html#LOCK_FRESH_MS">LOCK_FRESH_MS</a></li><li><a href="global.html#LOCK_NAME">LOCK_NAME</a></li><li><a href="global.html#OML_BASIS_KEYS">OML_BASIS_KEYS</a></li><li><a href="global.html#OML_RESERVED_KEYS">OML_RESERVED_KEYS</a></li><li><a href="global.html#RECOMPUTE_FAIL_STATUSES">RECOMPUTE_FAIL_STATUSES</a></li><li><a href="global.html#RECOMPUTE_MODES">RECOMPUTE_MODES</a></li><li><a href="global.html#SOLVE_OPT_KEYS">SOLVE_OPT_KEYS</a></li><li><a href="global.html#TPS_DEFAULT">TPS_DEFAULT</a></li><li><a href="global.html#WTradeStrategy">WTradeStrategy</a></li><li><a href="global.html#acquireRecomputeLock">acquireRecomputeLock</a></li><li><a href="global.html#allowedComps">allowedComps</a></li><li><a href="global.html#assmDefaultOf">assmDefaultOf</a></li><li><a href="global.html#barTimeOf">barTimeOf</a></li><li><a href="global.html#basisOf">basisOf</a></li><li><a href="global.html#basisPendingOf">basisPendingOf</a></li><li><a href="global.html#binomTailGE">binomTailGE</a></li><li><a href="global.html#buildBaseBars">buildBaseBars</a></li><li><a href="global.html#buildCache">buildCache</a></li><li><a href="global.html#buildKp">buildKp</a></li><li><a href="global.html#buildOhlc">buildOhlc</a></li><li><a href="global.html#buildP2Data">buildP2Data</a></li><li><a href="global.html#buildParams">buildParams</a></li><li><a href="global.html#calcOrdersStability">calcOrdersStability</a></li><li><a href="global.html#canonOf">canonOf</a></li><li><a href="global.html#checkBarGrid">checkBarGrid</a></li><li><a href="global.html#checkBasis">checkBasis</a></li><li><a href="global.html#checkInvariant">checkInvariant</a></li><li><a href="global.html#chkOml">chkOml</a></li><li><a href="global.html#classifyKeys">classifyKeys</a></li><li><a href="global.html#cleanFolder">cleanFolder</a></li><li><a href="global.html#commitBasis">commitBasis</a></li><li><a href="global.html#compsCloseOnly">compsCloseOnly</a></li><li><a href="global.html#countJson">countJson</a></li><li><a href="global.html#createCore">createCore</a></li><li><a href="global.html#createPipeline">createPipeline</a></li><li><a href="global.html#createSolver">createSolver</a></li><li><a href="global.html#dedupStrategies">dedupStrategies</a></li><li><a href="global.html#diffSummary">diffSummary</a></li><li><a href="global.html#edgesOf">edgesOf</a></li><li><a href="global.html#ensureFolder">ensureFolder</a></li><li><a href="global.html#eqYrOf">eqYrOf</a></li><li><a href="global.html#fetchBinance">fetchBinance</a></li><li><a href="global.html#fieldsOf">fieldsOf</a></li><li><a href="global.html#filterKeysCloseOnly">filterKeysCloseOnly</a></li><li><a href="global.html#fpBasisOf">fpBasisOf</a></li><li><a href="global.html#fpCacheOf">fpCacheOf</a></li><li><a href="global.html#funAddKeysInVbs">funAddKeysInVbs</a></li><li><a href="global.html#gapsOf">gapsOf</a></li><li><a href="global.html#idOf">idOf</a></li><li><a href="global.html#intervalSec">intervalSec</a></li><li><a href="global.html#isBarComplete">isBarComplete</a></li><li><a href="global.html#isKeyCloseOnly">isKeyCloseOnly</a></li><li><a href="global.html#isWithin">isWithin</a></li><li><a href="global.html#listJsonKeys">listJsonKeys</a></li><li><a href="global.html#makeFastEngine">makeFastEngine</a></li><li><a href="global.html#makeOtt">makeOtt</a></li><li><a href="global.html#nmKeyOf">nmKeyOf</a></li><li><a href="global.html#normalizeCfg">normalizeCfg</a></li><li><a href="global.html#normalizeExternal">normalizeExternal</a></li><li><a href="global.html#normalizeUnit">normalizeUnit</a></li><li><a href="global.html#nowIso">nowIso</a></li><li><a href="global.html#optFnOf">optFnOf</a></li><li><a href="global.html#parfor">parfor</a></li><li><a href="global.html#parseComps">parseComps</a></li><li><a href="global.html#prepareSolve">prepareSolve</a></li><li><a href="global.html#quantilesOf">quantilesOf</a></li><li><a href="global.html#r">r</a></li><li><a href="global.html#rawKeyOf">rawKeyOf</a></li><li><a href="global.html#rawPlanOf">rawPlanOf</a></li><li><a href="global.html#readBasis">readBasis</a></li><li><a href="global.html#readCsvFolder">readCsvFolder</a></li><li><a href="global.html#readF1Factors">readF1Factors</a></li><li><a href="global.html#readJsonOr">readJsonOr</a></li><li><a href="global.html#recomputeStrategies">recomputeStrategies</a></li><li><a href="global.html#relationOf">relationOf</a></li><li><a href="global.html#releaseRecomputeLock">releaseRecomputeLock</a></li><li><a href="global.html#resolveNmPeriod">resolveNmPeriod</a></li><li><a href="global.html#runRound">runRound</a></li><li><a href="global.html#serializableCfg">serializableCfg</a></li><li><a href="global.html#sliceByPeriod">sliceByPeriod</a></li><li><a href="global.html#solve">solve</a></li><li><a href="global.html#solveFwdOf">solveFwdOf</a></li><li><a href="global.html#sweepCfgOf">sweepCfgOf</a></li><li><a href="global.html#sweepPairs">sweepPairs</a></li><li><a href="global.html#sweepSingle">sweepSingle</a></li><li><a href="global.html#toNumericUnit">toNumericUnit</a></li><li><a href="global.html#validateDef">validateDef</a></li><li><a href="global.html#writeJson">writeJson</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">util/basis.mjs</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import fs from 'fs'
+import path from 'path'
+import crypto from 'crypto'
+import get from 'lodash-es/get.js'
+import isEqual from 'lodash-es/isEqual.js'
+import isenum from 'wsemi/src/isenum.mjs'
+import iseint from 'wsemi/src/iseint.mjs'
+import cdbl from 'wsemi/src/cdbl.mjs'
+import cint from 'wsemi/src/cint.mjs'
+import fsIsFolder from 'wsemi/src/fsIsFolder.mjs'
+import { getOffsets } from 'w-dwdata-binance/src/intervals.mjs'
+import { INTERVAL_SEC_DEFAULT, rawPlanOf } from '../cfg.mjs'
+import { ensureFolder } from './fsx.mjs'
+
+
+//工作根之口徑標記(meta/basis.json): 防止同一工作根混存不同口徑之產物(同名檔不同義、凍結之正規化常數失真)
+//  口徑 = 因子語意(periodBasis, 根數為本恆為'bars') + 每根秒數(intervalSec) + 時間口徑(timeBasis)
+//    + 非4hr(或4hr而由下載套件合併)時另記: 時區之UTC偏移(utcOffsets)、合併之基底(aggregateBase)、幣安抓取之dayStart
+//    + 求解之門檻格點與交易次數級距(solve.thsCond、solve.levelNumTradeBounds)
+//  4hr(intervalSec 14400、直接下載或外部數據)且未給timeBasis、thsCond、levelNumTradeBounds者為預設口徑: 不寫標記、不增任何檔(既有4hr工作根逐位不變); 但標記存在時照常讀取比對(無法解析即拋)
+//  非預設口徑之工作根: buildParams、sweepSingle、sweepPairs於產出前寫入標記; 求解於首個策略存檔之前寫入(求解選項此時已經w-trade-solve檢測);
+//    寫入一律「重讀 → 比對 → 寫入」(compare-and-set, 以短暫之互斥檔保護; 已存在而不同即拋; 穩態〔已存在且一致〕時無鎖讀取比對即返回, 不取互斥檔), 故中止後同設定再跑不被拒、兩個求解器交錯不混存兩種口徑
+//  其後各階段(含buildOhlc, 只檢查不寫)之口徑須與標記相同, 不同即拋(先於任何寫檔)
+//  無標記而須寫標記時(buildOhlc亦檢查), 該口徑所綁之既有產物須為空(或為本階段即將清空者), 否則拋(無標記之既有產物口徑不明, 例如舊語意〔依時間換算根數〕之工作根)
+
+
+/**
+ * 工作根口徑標記之檔名(位於cfg.fds.meta)
+ *
+ * @type {String}
+ */
+let BASIS_FILE = 'basis.json'
+
+
+//PERIOD_BASIS, 因子語意: 根數為本(w-data-trade >= 1.0.50)
+let PERIOD_BASIS = 'bars'
+
+//FIELDS, 標記中與設定比對之欄位(標記之欄名 → 錯誤訊息所指之設定鍵)
+let FIELDS = [
+    ['intervalSec', 'intervalSec'],
+    ['timeBasis', 'timeBasis'],
+    ['utcOffsets', 'timeZone'],
+    ['aggregateBase', 'aggregateFrom'],
+    ['dayStart', 'dayStart'],
+]
+
+/**
+ * 寫入標記時之互斥檔(meta/basis.json.lock)之時限(毫秒): staleMs為逾此未更新即視為殘留而移除(臨界區只有讀寫一個小檔, 遠短於此);
+ * waitMs為等候上限, 須大於staleMs(持鎖行程被強制結束而遺留之互斥檔於等候中即被清除, 不致整體失敗); stepMs為重試間隔; 測試可暫改其值(用畢還原)
+ *
+ * @type {Object}
+ */
+let BASIS_GUARD = { staleMs: 30000, waitMs: 35000, stepMs: 25 }
+
+//BUSY_CODES, 建立或移除互斥檔時視為「占用中」而重試之錯誤碼(Windows 上檔案刪除進行中常見 EPERM、EBUSY)
+let BUSY_CODES = ['EEXIST', 'EPERM', 'EBUSY', 'EACCES']
+
+//MSG_SOLVE_HINT, 求解口徑不同之復原途徑(策略庫尚無任何策略檔時)
+let MSG_SOLVE_HINT = 'with an empty strategy library, set solve to null in meta/basis.json, or use a new work root'
+
+
+/**
+ * 工作根口徑標記之檔案路徑
+ *
+ * @function
+ * @param {Object} cfg 輸入normalizeCfg正規化後之設定物件
+ * @returns {String} 回傳`${cfg.fds.meta}/basis.json`之絕對路徑
+ * @example
+ *
+ * console.log(fpBasisOf({ fds: { meta: '/x/meta' } }).replace(/\\/g, '/').endsWith('/x/meta/basis.json'))
+ * // => true
+ *
+ */
+let fpBasisOf = (cfg) => path.resolve(cfg.fds.meta, BASIS_FILE)
+
+
+//normArr, 求解選項之陣列正規化(只供口徑比對; 有效性由w-trade-solve檢測): null或undefined為null, 陣列之各元素合於fnOk者以fnCv轉為數值, 其餘原樣
+let normArr = (v, fnOk, fnCv) => {
+    if (v === null || v === undefined) {
+        return null
+    }
+    if (!Array.isArray(v)) {
+        return v
+    }
+    return v.map((x) => (fnOk(x) ? fnCv(x) : x))
+}
+
+
+//extOf, 非4hr(或4hr而由下載套件合併)時之數據口徑: 時區之UTC偏移(數據起點前1日至今後1年內出現之各偏移, 分鐘, 東為正)、合併之基底(直接下載與外部數據為null)、幣安抓取之dayStart(外部數據為null); 其餘回傳null
+let extOf = (cfg) => {
+    let binance = cfg.source === 'binance'
+    let plan = binance ? rawPlanOf(cfg) : null
+    let aggregated = plan !== null &amp;&amp; plan.mode === 'aggregate'
+    if (cfg.intervalSec === INTERVAL_SEC_DEFAULT &amp;&amp; !aggregated) {
+        return null
+    }
+    return {
+        utcOffsets: getOffsets(cfg.timeZone, String(get(cfg, 'timeBegin', '')).slice(0, 10)),
+        aggregateBase: aggregated ? plan.base : null,
+        dayStart: binance ? cfg.dayStart : null,
+    }
+}
+
+
+/**
+ * 由設定與求解選項取得口徑(供口徑標記之寫入與比對)
+ *
+ * 回傳{periodBasis,intervalSec,timeBasis[,utcOffsets,aggregateBase,dayStart][,solve]}，periodBasis恆為'bars'(根數為本)，timeBasis未給為null；
+ * 非4hr(或4hr而由w-dwdata-binance合併)時另含utcOffsets(cfg.timeZone於數據起點前1日至今後1年內出現之各UTC偏移分鐘數之陣列，由小到大)、aggregateBase(合併之基底週期鍵，直接下載與外部數據為null)、dayStart(cfg.source為'binance'時之cfg.dayStart，外部數據為null)；
+ * solve於給optSolve時為{thsCond,levelNumTradeBounds}(數字字串轉為數值，未給為null)，未給optSolve時不含solve
+ *
+ * @function
+ * @param {Object} cfg 輸入normalizeCfg正規化後之設定物件
+ * @param {Object} [optSolve] 輸入求解之設定物件(取thsCond與levelNumTradeBounds)，未給時不含solve
+ * @returns {Object} 回傳口徑物件
+ * @example
+ *
+ * console.log(JSON.stringify(basisOf({ intervalSec: 86400, timeBasis: 'span', timeZone: 'Asia/Taipei', timeBegin: '2023-01-01T00:00:00', source: {} }, { levelNumTradeBounds: ['1', 3] })))
+ * // => {"periodBasis":"bars","intervalSec":86400,"timeBasis":"span","utcOffsets":[480],"aggregateBase":null,"dayStart":null,"solve":{"thsCond":null,"levelNumTradeBounds":[1,3]}}
+ *
+ */
+let basisOf = (cfg, optSolve) => {
+    let r = {
+        periodBasis: PERIOD_BASIS,
+        intervalSec: cfg.intervalSec,
+        timeBasis: get(cfg, 'timeBasis', null),
+    }
+    let ext = extOf(cfg)
+    if (ext !== null) {
+        Object.assign(r, ext)
+    }
+    if (optSolve !== undefined) {
+        r.solve = {
+            thsCond: normArr(get(optSolve, 'thsCond', null), isenum, cdbl),
+            levelNumTradeBounds: normArr(get(optSolve, 'levelNumTradeBounds', null), (x) => iseint(x, { min: 1 }), cint),
+        }
+    }
+    return r
+}
+
+
+//isDefaultBasis, 是否為預設口徑(4hr、未給timeBasis、無合併; withSolve時另須未給thsCond與levelNumTradeBounds)
+let isDefaultBasis = (want, withSolve) => {
+    let cfgDefault = want.intervalSec === INTERVAL_SEC_DEFAULT &amp;&amp; want.timeBasis === null &amp;&amp; want.utcOffsets === undefined
+    let solveDefault = !withSolve || (want.solve.thsCond === null &amp;&amp; want.solve.levelNumTradeBounds === null)
+    return cfgDefault &amp;&amp; solveDefault
+}
+
+
+//markerOf, 口徑 → 標記物件(欄序固定; 無solve者記null)
+let markerOf = (want) => {
+    let r = {
+        periodBasis: want.periodBasis,
+        intervalSec: want.intervalSec,
+        timeBasis: want.timeBasis,
+    }
+    if (want.utcOffsets !== undefined) {
+        r.utcOffsets = want.utcOffsets
+        r.aggregateBase = want.aggregateBase
+        r.dayStart = want.dayStart
+    }
+    r.solve = want.solve === undefined ? null : want.solve
+    return r
+}
+
+
+/**
+ * 讀取工作根之口徑標記
+ *
+ * 檔案不存在回傳null；存在而無法解析(非JSON或非物件)即throw `invalid cfg.root: must have a readable basis record in meta/basis.json; use a new work root`(不當成無標記)；讀取失敗(非ENOENT；EPERM、EBUSY、EACCES先短暫重試)即throw `invalid cfg.root: must allow reading meta/basis.json (&lt;錯誤碼>)`(只帶錯誤碼，不外漏原生訊息與路徑)
+ *
+ * @function
+ * @param {Object} cfg 輸入normalizeCfg正規化後之設定物件
+ * @returns {Object|null} 回傳標記物件或null
+ * @example
+ * need test in nodejs.
+ *
+ * let mk = readBasis(cfg)
+ */
+let readBasis = (cfg) => {
+    let fp = fpBasisOf(cfg)
+    let raw = null
+    for (let k = 0; raw === null; k++) {
+        try {
+            raw = fs.readFileSync(fp, 'utf8')
+        }
+        catch (err) {
+            if (err.code === 'ENOENT') {
+                return null
+            }
+            if (k >= 5 || !['EPERM', 'EBUSY', 'EACCES'].includes(err.code)) {
+                throw new Error(`invalid cfg.root: must allow reading meta/basis.json (${codeOf(err)})`) //只帶錯誤碼, 不外漏原生訊息與路徑
+            }
+            sleepMs(10 * (k + 1)) //寫入為暫存檔改名覆蓋, Windows上讀取端於改名瞬間可能遇暫時性EPERM、EBUSY, 短暫重試
+        }
+    }
+    let mk = null
+    try {
+        mk = JSON.parse(raw)
+    }
+    catch (err) {
+        mk = null
+    }
+    if (mk === null || typeof mk !== 'object' || Array.isArray(mk)) {
+        throw new Error(`invalid cfg.root: must have a readable basis record in meta/basis.json; use a new work root`)
+    }
+    return mk
+}
+
+
+//valOf, 標記或口徑之欄值(未記為null)
+let valOf = (o, k) => {
+    let v = get(o, k, null)
+    return v === undefined ? null : v
+}
+
+
+//compareBasis, 標記與口徑逐欄比對(periodBasis、intervalSec、timeBasis、utcOffsets、aggregateBase、dayStart; withSolve且標記已記solve時另比對solve), 不同即throw(訊息固定, 不含輸入值)
+let compareBasis = (mk, want, withSolve) => {
+    if (valOf(mk, 'periodBasis') !== PERIOD_BASIS) {
+        throw new Error(`invalid cfg.root: must have a supported period basis in meta/basis.json; use a new work root`)
+    }
+    for (let [k, name] of FIELDS) {
+        if (!isEqual(valOf(mk, k), valOf(want, k))) {
+            throw new Error(`invalid cfg.${name}: must match the basis recorded in the work root (meta/basis.json)`)
+        }
+    }
+    let ms = valOf(mk, 'solve')
+    if (withSolve &amp;&amp; ms !== null) {
+        for (let k of ['thsCond', 'levelNumTradeBounds']) {
+            if (!isEqual(valOf(ms, k), valOf(want.solve, k))) {
+                throw new Error(`invalid opt.${k}: must match the basis recorded in the work root (meta/basis.json); ${MSG_SOLVE_HINT}`)
+            }
+        }
+    }
+}
+
+
+//hasJson, 資料夾第1層是否有json檔
+let hasJson = (fd) => {
+    if (!fsIsFolder(fd)) {
+        return false
+    }
+    return fs.readdirSync(fd).some((f) => f.endsWith('.json'))
+}
+
+
+/**
+ * 檢查工作根之口徑(meta/basis.json)與本階段之口徑一致，決定是否須寫入標記(本函數不寫檔)
+ *
+ * 標記存在而無法解析即throw(見readBasis)；標記存在時: periodBasis不為'bars'即throw `invalid cfg.root: must have a supported period basis in meta/basis.json; use a new work root`，
+ * intervalSec、timeBasis、utcOffsets、aggregateBase、dayStart須與本次相同，不同即throw `invalid cfg.&lt;intervalSec|timeBasis|timeZone|aggregateFrom|dayStart>: must match the basis recorded in the work root (meta/basis.json)`(不含輸入值)；
+ * stage為'solve'時另比對solve(thsCond、levelNumTradeBounds；不同即throw `invalid opt.&lt;名稱>: must match the basis recorded in the work root (meta/basis.json); with an empty strategy library, set solve to null in meta/basis.json, or use a new work root`)，標記尚無solve者回傳須補寫之標記(此時ctx.fdStrategies須無json，否則throw)；stage為'ohlc'時不寫標記、恆回傳null(但下述檢查照做)
+ * 標記不存在時: 本次為預設口徑(見basisOf; stage為'solve'時另須無thsCond與levelNumTradeBounds)回傳null(不寫任何檔)；
+ * 否則該口徑所綁之既有產物(每根秒數或數據口徑 ⇒ param夾、meta/params.json、各策略夾；時間口徑 ⇒ 各策略夾；求解選項 ⇒ ctx.fdStrategies)須為空(ctx.fdsCleared所列者視為即將清空)，否則throw `invalid cfg.root: must not contain &lt;夾名> built without a recorded basis (meta/basis.json); use a new work root`，通過即回傳須寫入之標記(交commitBasis寫入)
+ *
+ * @function
+ * @param {Object} cfg 輸入normalizeCfg正規化後之設定物件
+ * @param {String} stage 輸入階段字串'ohlc'、'params'、'sweepSingle'、'sweepPairs'或'solve'
+ * @param {Object} [ctx={}] 輸入情境物件，預設{}
+ * @param {Array} [ctx.fdsCleared=[]] 輸入本階段開始時即清空之資料夾路徑陣列
+ * @param {Object} [ctx.optSolve] 輸入stage為'solve'時之求解設定物件
+ * @param {String} [ctx.fdStrategies] 輸入stage為'solve'時之策略庫資料夾，預設cfg.fds.strategies
+ * @param {String} [ctx.fdTar] 輸入普測之輸出資料夾(列入綁定之產物)
+ * @returns {Object|null} 回傳須寫入之標記物件或null(無須寫入)
+ * @example
+ * need test in nodejs.
+ *
+ * commitBasis(cfg, checkBasis(cfg, 'params'))
+ */
+let checkBasis = (cfg, stage, ctx = {}) => {
+
+    let isSolve = stage === 'solve'
+    let want = basisOf(cfg, isSolve ? get(ctx, 'optSolve', {}) : undefined)
+    let fdStrategies = path.resolve(get(ctx, 'fdStrategies', '') || cfg.fds.strategies)
+    let fdTar = get(ctx, 'fdTar', '') ? path.resolve(ctx.fdTar) : null
+    let cleared = new Set(get(ctx, 'fdsCleared', []).map((fd) => path.resolve(fd)))
+
+    //assertEmpty, 綁定之產物須為空(本階段即將清空者除外)
+    let assertEmpty = (items) => {
+        for (let [label, fd, isFile] of items) {
+            if (cleared.has(fd)) {
+                continue
+            }
+            if (isFile ? fs.existsSync(fd) : hasJson(fd)) {
+                throw new Error(`invalid cfg.root: must not contain ${label} built without a recorded basis (meta/basis.json); use a new work root`)
+            }
+        }
+    }
+
+    let mk = readBasis(cfg)
+
+    //標記存在: 逐欄比對
+    if (mk !== null) {
+        compareBasis(mk, want, isSolve)
+        if (!isSolve || valOf(mk, 'solve') !== null) {
+            return null
+        }
+        assertEmpty([['the strategy library', fdStrategies, false]])
+        return { ...mk, solve: want.solve }
+    }
+
+    //標記不存在: 預設口徑不寫任何檔
+    if (isDefaultBasis(want, isSolve)) {
+        return null
+    }
+
+    //須寫標記: 各口徑所綁之既有產物須為空
+    let folders = (list) => list.filter((v) => v[1] !== null)
+    let strategyFolders = folders([
+        ['strategiesP1', path.resolve(cfg.fds.strategiesP1), false],
+        ['strategiesP2', path.resolve(cfg.fds.strategiesP2), false],
+        ['strategies', path.resolve(cfg.fds.strategies), false],
+        ['the strategy library', isSolve ? fdStrategies : null, false],
+        ['the sweep output', fdTar, false],
+    ])
+    if (want.intervalSec !== INTERVAL_SEC_DEFAULT || want.utcOffsets !== undefined) {
+        assertEmpty([
+            ['param', path.resolve(cfg.fds.param), false],
+            ['meta/params.json', path.resolve(cfg.fds.meta, 'params.json'), true],
+            ...strategyFolders,
+        ])
+    }
+    else if (want.timeBasis !== null) {
+        assertEmpty(strategyFolders)
+    }
+    if (isSolve &amp;&amp; (want.solve.thsCond !== null || want.solve.levelNumTradeBounds !== null)) {
+        assertEmpty([['the strategy library', fdStrategies, false]])
+    }
+
+    //buildOhlc: 綁定之既有產物之檢查同上(先於寫任何K線檔), 但不寫標記(由其後之buildParams等寫入)
+    if (stage === 'ohlc') {
+        return null
+    }
+
+    return markerOf(isSolve ? want : { ...want, solve: undefined })
+}
+
+
+/**
+ * 求解輪次於首個策略存檔之前所須寫入之標記(預設口徑回傳null)
+ *
+ * @function
+ * @param {Object} cfg 輸入normalizeCfg正規化後之設定物件
+ * @param {Object} optSolve 輸入求解之設定物件
+ * @returns {Object|null} 回傳標記物件或null
+ * @example
+ *
+ * console.log(basisPendingOf({ intervalSec: 14400, source: {} }, {}))
+ * // => null
+ *
+ */
+let basisPendingOf = (cfg, optSolve) => {
+    let want = basisOf(cfg, optSolve || {})
+    return isDefaultBasis(want, true) ? null : markerOf(want)
+}
+
+
+//sleepMs, 同步等待(臨界區之互斥檔被占用時短暫重試)
+let sleepMs = (ms) => {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+}
+
+//tmpOf, 同資料夾之暫存檔名
+let tmpOf = (fp) => `${fp}.${process.pid}.${crypto.randomBytes(6).toString('hex')}.tmp`
+
+//codeOf, 錯誤碼(只取錯誤碼, 不外漏原生訊息與路徑)
+let codeOf = (err) => String((err &amp;&amp; err.code) || 'unknown')
+
+//rmQuiet, 移除檔案, 失敗不拋(回傳是否成功)
+let rmQuiet = (fp) => {
+    try {
+        fs.rmSync(fp, { force: true })
+        return true
+    }
+    catch (err) {
+        return false
+    }
+}
+
+//createExcl, 內容先寫入暫存檔再以linkSync建立目標(已存在或占用中〔BUSY_CODES〕即回false), 目標一出現即有完整內容; 其餘錯誤以固定訊息拋出(只帶錯誤碼)
+let createExcl = (fp, content) => {
+    let tmp = tmpOf(fp)
+    try {
+        fs.writeFileSync(tmp, content, 'utf8')
+    }
+    catch (err) {
+        rmQuiet(tmp)
+        throw new Error(`invalid cfg.root: must allow creating meta/basis.json.lock (${codeOf(err)})`)
+    }
+    try {
+        fs.linkSync(tmp, fp)
+        return true
+    }
+    catch (err) {
+        if (BUSY_CODES.includes(err.code)) {
+            return false
+        }
+        throw new Error(`invalid cfg.root: must allow creating meta/basis.json.lock (${codeOf(err)})`)
+    }
+    finally {
+        rmQuiet(tmp)
+    }
+}
+
+//replaceFile, 內容先寫入暫存檔再改名覆蓋(讀者不會讀到寫一半之內容; 目標被他行程短暫開啟時重試數次)
+let replaceFile = (fp, content) => {
+    let tmp = tmpOf(fp)
+    try {
+        fs.writeFileSync(tmp, content, 'utf8')
+    }
+    catch (err) {
+        rmQuiet(tmp)
+        throw new Error(`invalid cfg.root: must allow writing meta/basis.json (${codeOf(err)})`)
+    }
+    try {
+        for (let k = 0; ; k++) {
+            try {
+                fs.renameSync(tmp, fp)
+                return
+            }
+            catch (err) {
+                if (k >= 5 || !['EPERM', 'EBUSY', 'EACCES'].includes(err.code)) {
+                    throw new Error(`invalid cfg.root: must allow writing meta/basis.json (${codeOf(err)})`)
+                }
+                sleepMs(50 * (k + 1))
+            }
+        }
+    }
+    finally {
+        rmQuiet(tmp)
+    }
+}
+
+//withGuard, 以互斥檔(&lt;標記>.lock, 原子建立)保護「重讀 → 比對 → 寫入」: 占用中則每BASIS_GUARD.stepMs重試, 逾BASIS_GUARD.staleMs未更新者視為殘留而移除(移除失敗亦視為占用而續等),
+//  等候逾BASIS_GUARD.waitMs(大於staleMs)即以固定訊息拋出; 用畢移除(失敗時重試數次, 仍失敗者留待殘留判定)
+let withGuard = (fp, fn) => {
+    let fg = `${fp}.lock`
+    let t0 = Date.now()
+    for (;;) {
+        if (createExcl(fg, JSON.stringify({ pid: process.pid, at: new Date().toISOString() }))) {
+            break
+        }
+        let mt = null
+        try {
+            mt = fs.statSync(fg).mtimeMs
+        }
+        catch (err) {}
+        if (mt !== null &amp;&amp; Date.now() - mt > BASIS_GUARD.staleMs &amp;&amp; rmQuiet(fg)) {
+            continue
+        }
+        if (Date.now() - t0 > BASIS_GUARD.waitMs) {
+            throw new Error(`invalid cfg.root: must not have meta/basis.json.lock held by another process; retry later`)
+        }
+        sleepMs(BASIS_GUARD.stepMs)
+    }
+    try {
+        return fn()
+    }
+    finally {
+        for (let k = 0; k &lt; 5 &amp;&amp; !rmQuiet(fg); k++) {
+            sleepMs(BASIS_GUARD.stepMs)
+        }
+    }
+}
+
+
+/**
+ * 寫入工作根之口徑標記: 重讀 → 比對 → 寫入(compare-and-set)
+ *
+ * marker為null或undefined時不做任何事；標記不存在即寫入marker；已存在時逐欄比對(同checkBasis，不同即throw)，相同而marker另有solve、標記尚無solve者補記solve，其餘不寫；
+ * 穩態(標記已存在且一致、無須寫入)時先無鎖讀取比對即返回，不取互斥檔；須寫入時才於互斥檔(meta/basis.json.lock，原子建立，用畢即刪；時限見BASIS_GUARD)內「重讀 → 比對 → 寫入」，寫入先寫暫存檔再改名，
+ * 故中止後同設定再跑不被拒、兩個求解器(或求解與普測)交錯時後到者即throw而不混存兩種口徑；互斥檔被占用時等候(同口徑並行者等候後比對通過或寫入)，逾時即throw `invalid cfg.root: must not have meta/basis.json.lock held by another process; retry later`(建立互斥檔或寫入標記失敗者throw `invalid cfg.root: must allow creating meta/basis.json.lock (&lt;錯誤碼>)`、`invalid cfg.root: must allow writing meta/basis.json (&lt;錯誤碼>)`，只帶錯誤碼，不帶路徑與原生訊息)
+ *
+ * @function
+ * @param {Object} cfg 輸入normalizeCfg正規化後之設定物件
+ * @param {Object|null} marker 輸入checkBasis或basisPendingOf回傳之標記物件
+ * @returns {undefined} 無回傳
+ * @example
+ * need test in nodejs.
+ *
+ * commitBasis(cfg, checkBasis(cfg, 'params'))
+ */
+let commitBasis = (cfg, marker) => {
+    if (marker === null || marker === undefined) {
+        return
+    }
+    let fp = fpBasisOf(cfg)
+    let ws = valOf(marker, 'solve')
+    //穩態: 標記已存在且一致、無須寫入時不取互斥檔(無鎖讀取比對; 寫入皆為暫存檔改名, 讀者不會讀到寫一半之內容)
+    let mk0 = readBasis(cfg)
+    if (mk0 !== null) {
+        compareBasis(mk0, marker, ws !== null)
+        if (ws === null || valOf(mk0, 'solve') !== null) {
+            return
+        }
+    }
+    ensureFolder(path.dirname(fp))
+    withGuard(fp, () => {
+        let mk = readBasis(cfg)
+        if (mk === null) {
+            replaceFile(fp, JSON.stringify(marker, null, 2))
+            return
+        }
+        compareBasis(mk, marker, ws !== null)
+        if (ws !== null &amp;&amp; valOf(mk, 'solve') === null) {
+            replaceFile(fp, JSON.stringify({ ...mk, solve: ws }, null, 2))
+        }
+    })
+}
+
+
+export { BASIS_FILE, BASIS_GUARD, fpBasisOf, basisOf, readBasis, checkBasis, basisPendingOf, commitBasis }
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Thu Nov 19 2026 12:04:25 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+
+
+</body>
+</html>
