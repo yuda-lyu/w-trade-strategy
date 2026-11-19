@@ -7,8 +7,10 @@ import iseobj from 'wsemi/src/iseobj.mjs'
 import isobj from 'wsemi/src/isobj.mjs'
 import isestr from 'wsemi/src/isestr.mjs'
 import fsIsFile from 'wsemi/src/fsIsFile.mjs'
+import isenum from 'wsemi/src/isenum.mjs'
 import { makeOtt } from '../util/ott.mjs'
 import { fpCacheOf } from '../cache/buildCache.mjs'
+import { barTimeOf } from '../cfg.mjs'
 
 
 /**
@@ -48,11 +50,11 @@ let assmDefaultOf = (barsPerDay) => ({
  * @param {Object} cfg 輸入normalizeCfg正規化後之設定物件(須含train)
  * @param {Object} [opt={}] 輸入設定物件，預設{}
  * @param {String} [opt.fpCache] 輸入先觸快取檔路徑，預設cfg.fds.cache/cacheKLinesTpSl.json
- * @param {Array} [opt.tpsls=[4,5,6,7,8,9,10]] 輸入止盈止損百分比陣列(tp=sl)
+ * @param {Array} [opt.tpsls=[4,5,6,7,8,9,10]] 輸入止盈止損百分比陣列(tp=sl)，各元素須為正數(數值或數字字串)，否則throw `invalid opt.tpsls: must be an array of positive numbers`
  * @param {Array} [opt.thsLong] 輸入做多門檻陣列，預設0~2切10段
  * @param {Array} [opt.thsShort] 輸入做空門檻陣列，預設-2~0切10段
  * @param {Object} [opt.assm] 輸入穩定度gate門檻之覆寫物件
- * @returns {Object} 回傳普測設定物件，cfg.settings含unit(基礎單位)時另含unit鍵
+ * @returns {Object} 回傳普測設定物件，cfg.settings含unit(基礎單位)時另含unit鍵，cfg.timeBasis有給時另含barTime鍵({intervalSec,timeBasis}，見barTimeOf)；cfg.settings之uIni、uTrade(給unit時不檢)須為正數、rFee須為非負數(數值或數字字串，只檢不轉型)，否則throw `invalid cfg.settings.<名稱>: must be …`
  * @example
  * need test in nodejs.
  *
@@ -89,6 +91,24 @@ let sweepCfgOf = (cfg, opt = {}) => {
         thsShort = map(rang(-2, 0, 10), (v) => round(v, 1))
     }
 
+    //check, 策略settings之數值欄(w-trade-backtest >= 1.1.43於重放時檢測: uIni、uTrade、rTakeProfit、rStopLoss須正數, rFee非負)與止盈止損候選, 不合即throw(先於任何計算與寫檔; 只檢不轉型, 合法之輸入與既有逐位相同)
+    for (let tpsl of tpsls) {
+        if (!isenum(tpsl, { gt: 0 })) {
+            throw new Error(`invalid opt.tpsls: must be an array of positive numbers`)
+        }
+    }
+    for (let k of isobj(cfg.settings.unit) ? ['uIni'] : ['uIni', 'uTrade']) { //給unit時每單名義依基礎單位, 不讀uTrade(同回測套件不檢)
+        if (!isenum(cfg.settings[k], { gt: 0 })) {
+            throw new Error(`invalid cfg.settings.${k}: must be a positive number`)
+        }
+    }
+    if (!isenum(cfg.settings.rFee, { min: 0 })) {
+        throw new Error(`invalid cfg.settings.rFee: must be a non-negative number`)
+    }
+
+    //barTime, 時間口徑(cfg.timeBasis有給時為{intervalSec,timeBasis}, 接於策略settings之末並交給calcOrdersSummarySimple; 未給時無此鍵)
+    let barTime = barTimeOf(cfg)
+
     return {
         name: cfg.name,
         symbol: cfg.symbol,
@@ -106,6 +126,7 @@ let sweepCfgOf = (cfg, opt = {}) => {
         uTrade: cfg.settings.uTrade,
         rFee: cfg.settings.rFee,
         ...(isobj(cfg.settings.unit) ? { unit: cfg.settings.unit } : {}), //基礎單位(給cfg.settings.unit時才有此鍵)
+        ...(barTime !== null ? { barTime } : {}), //時間口徑(給cfg.timeBasis時才有此鍵)
         assm: { ...assmDefaultOf(barsPerDay), ...(iseobj(opt.assm) ? opt.assm : {}) },
         fpCache,
         barsPerDay,

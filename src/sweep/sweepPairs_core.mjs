@@ -19,7 +19,7 @@ import { makeOtt } from '../util/ott.mjs'
  *
  * @function
  * @param {Object} init 輸入{sc(sweepCfgOf之設定),p2data(buildP2Data之共享資料)}
- * @returns {Function} 回傳async函數core(job) => {strategies}，job為{mode,i,numTradeFinMin,eqYrMin,useAssm,withMask}；sc含unit(基礎單位)時每單名義依基礎單位、策略之settings另含unit(最大持倉名義不設門檻，只隨summary落地)
+ * @returns {Function} 回傳async函數core(job) => {strategies}，job為{mode,i,numTradeFinMin,eqYrMin,useAssm,withMask}；sc含unit(基礎單位)時每單名義依基礎單位、策略之settings另含unit(最大持倉名義不設門檻，只隨summary落地)；sc含barTime(時間口徑)時策略之settings於末另含intervalSec與timeBasis，且摘要以之計回測天數
  * @example
  * need test in nodejs.
  *
@@ -95,6 +95,9 @@ let createCore = (init) => {
         if (sc.unit) {
             settings.unit = sc.unit //交易規則與緩衝隨策略檔落地
         }
+        if (sc.barTime) {
+            Object.assign(settings, sc.barTime) //時間口徑(intervalSec、timeBasis)接於末, 隨策略檔落地(重放依之)
+        }
         return {
             tid: genTid(sc.name, sc.interval, mode, [A.key, B.key]),
             sid: genSid(sc.name, sc.interval, mode, conds),
@@ -146,7 +149,7 @@ let createCore = (init) => {
                 let entTimes = entIdx.map((k) => times[k])
                 for (let tpsl of candTpsls) {
                     let orders = tbl.ordersFromBars(mode, tpsl, entTimes, optOrders)
-                    let sm = calcOrdersSummarySimple(ott, sc.uIni, orders, sc.tr.ts, sc.tr.te, { skipSort: true })
+                    let sm = calcOrdersSummarySimple(ott, sc.uIni, orders, sc.tr.ts, sc.tr.te, { skipSort: true, ...(sc.barTime || {}) }) //給時間口徑時依之計回測天數
                     if (sm.numTradeFin <= numTradeFinMin) {
                         continue
                     }

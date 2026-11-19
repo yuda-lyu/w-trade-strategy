@@ -34,11 +34,11 @@ let test = async () => {
         root,
         name: 'DEMO',
         symbol: 'DEMOUSDT',
-        interval: '4hr', //'1m' | '5m' | '15m' | '30m' | '1hr' | '4hr'; 其他週期另給 intervalSec
+        interval: '4hr', //內建週期 '1m' | '3m' | '5m' | '15m' | '30m' | '1hr' | '2hr' | '4hr' | '6hr' | '8hr' | '12hr' | '1day' | '1week'; 其他週期另給 intervalSec
         timeZone: 'UTC', //時間字串之固定時區(預設 Asia/Taipei)
         timeBegin: arrPrice[0].time,
         source: { price: arrPrice, index: arrIndex }, //外部數據; 未給 index 時自動 useIndex=false 並剔除基於溢價指數之參數
-        train: { timeStart: arrPrice[0].time, timeEnd: arrPrice[n - 1].time },
+        train: { timeStart: arrPrice[0].time, timeEnd: arrPrice[n - 1].time }, //終點為最後一根納入之K線之開盤時刻(每根1日而期間止於D日00:00者寫D−1日00:00)
     })
 
     //1. 數據 → 參數 → 先觸快取(source 為 'binance' 時先 await pl.fetchData(); 亦可一次 await pl.prepare())

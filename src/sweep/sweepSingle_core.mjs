@@ -23,7 +23,7 @@ import { makeOtt } from '../util/ott.mjs'
  *
  * @function
  * @param {Object} sc 輸入sweepCfgOf之普測設定物件
- * @returns {Function} 回傳async函數core(job) => {factor,strategies}，job為{factor,arr,numTradeFinMin,useAssm,usePlateau}；sc含unit(基礎單位)時每單名義依基礎單位、策略之settings另含unit(最大持倉名義不設門檻，只隨summary落地)
+ * @returns {Function} 回傳async函數core(job) => {factor,strategies}，job為{factor,arr,numTradeFinMin,useAssm,usePlateau}；sc含unit(基礎單位)時每單名義依基礎單位、策略之settings另含unit(最大持倉名義不設門檻，只隨summary落地)；sc含barTime(時間口徑)時策略之settings於末另含intervalSec與timeBasis，且摘要以之計回測天數
  * @example
  * need test in nodejs.
  *
@@ -64,6 +64,9 @@ let createCore = (sc) => {
         if (sc.unit) {
             settings.unit = sc.unit //交易規則與緩衝隨策略檔落地
         }
+        if (sc.barTime) {
+            Object.assign(settings, sc.barTime) //時間口徑(intervalSec、timeBasis)接於末, 隨策略檔落地(重放依之)
+        }
         return {
             tid: genTid(sc.name, sc.interval, mode, [factor]),
             sid: genSid(sc.name, sc.interval, mode, conds),
@@ -89,7 +92,7 @@ let createCore = (sc) => {
     let evalCfg = (arr, mode, sym, th, tpsl) => {
         let entryTimes = entryTimesOf(arr, sym, th)
         let orders = tbl.ordersFromBars(mode, tpsl, entryTimes, optOrders)
-        let sm = calcOrdersSummarySimple(ott, sc.uIni, orders, sc.tr.ts, sc.tr.te)
+        let sm = sc.barTime ? calcOrdersSummarySimple(ott, sc.uIni, orders, sc.tr.ts, sc.tr.te, { ...sc.barTime }) : calcOrdersSummarySimple(ott, sc.uIni, orders, sc.tr.ts, sc.tr.te) //給時間口徑時依之計回測天數(未給時與既有之呼叫相同)
         let eqYr = eqYrOf(sm)
         let nFin = 0
         let nWin = 0

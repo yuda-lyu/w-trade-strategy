@@ -63,6 +63,23 @@ describe('cache 與 sweep', function() {
         assert.throws(() => sweepCfgOf(c, { fpCache: path.resolve(fdTmp, 'nope.json') }), /buildCache/)
     })
 
+    it('sweepCfgOf: 策略settings之數值欄與止盈止損候選須有效(w-trade-backtest >= 1.1.43於重放時拒絕0與負值), 不合即throw(訊息不含輸入值); 合法者原樣(數字字串不轉型); 給unit時不檢uTrade; 未給timeBasis時無barTime', function() {
+        //spec(規則帳本TS-23): 本套件組settings之每一處不得送出0或負之值
+        assert.throws(() => sweepCfgOf(c, { tpsls: [5, 0] }), (e) => e.message === 'invalid opt.tpsls: must be an array of positive numbers')
+        assert.throws(() => sweepCfgOf(c, { tpsls: [-3] }), (e) => e.message === 'invalid opt.tpsls: must be an array of positive numbers')
+        assert.throws(() => sweepCfgOf(c, { tpsls: ['x'] }), (e) => e.message === 'invalid opt.tpsls: must be an array of positive numbers')
+        assert.throws(() => sweepCfgOf({ ...c, settings: { ...c.settings, uIni: 0 } }), (e) => e.message === 'invalid cfg.settings.uIni: must be a positive number')
+        assert.throws(() => sweepCfgOf({ ...c, settings: { ...c.settings, uTrade: -1 } }), (e) => e.message === 'invalid cfg.settings.uTrade: must be a positive number')
+        assert.throws(() => sweepCfgOf({ ...c, settings: { ...c.settings, rFee: -0.001 } }), (e) => e.message === 'invalid cfg.settings.rFee: must be a non-negative number')
+        let s2 = sweepCfgOf({ ...c, settings: { ...c.settings, uIni: '2000', rFee: 0 } })
+        assert.strictEqual(s2.uIni, '2000') //只檢不轉型(未給unit時逐位不變)
+        assert.strictEqual(s2.rFee, 0)
+        let unit = { rule: { stepSize: 0.001, minQty: 0.001, minNotional: 5, asOf: '2026-01-01T00:00:00', source: 'test' }, buffer: 0.1, units: 1 }
+        assert.ok(sweepCfgOf({ ...c, settings: { ...c.settings, uTrade: 0, unit } }).unit)
+        assert.ok(!('barTime' in sweepCfgOf(c)))
+        assert.deepStrictEqual(sweepCfgOf({ ...c, timeBasis: 'open' }).barTime, { intervalSec: 14400, timeBasis: 'open' })
+    })
+
     it('sweepSingle輸出單因子raw策略(每因子每方向至多1檔), 檔案與欄位格式相容於w-trade-solve', async function() {
         this.timeout(120000)
         let prog = []

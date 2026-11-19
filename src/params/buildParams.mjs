@@ -4,6 +4,7 @@ import map from 'lodash-es/map.js'
 import filter from 'lodash-es/filter.js'
 import find from 'lodash-es/find.js'
 import includes from 'lodash-es/includes.js'
+import omit from 'lodash-es/omit.js'
 import isestr from 'wsemi/src/isestr.mjs'
 import isearr from 'wsemi/src/isearr.mjs'
 import iseobj from 'wsemi/src/iseobj.mjs'
@@ -15,6 +16,7 @@ import wdt from 'w-data-trade/src/WDataTrade.mjs'
 import { chkIntervalSec, INTERVAL_SEC_BASE } from 'w-data-trade/src/resolvePeriods.mjs'
 import CATALOG from './catalog.mjs'
 import { ensureFolder, readJsonOr, writeJson, listJsonKeys, nowIso } from '../util/fsx.mjs'
+import { checkBasis, commitBasis } from '../util/basis.mjs'
 
 
 /**
@@ -275,6 +277,8 @@ let resolveNmPeriod = (cfg, opt) => {
  * index側帶optMethod之指標預設以w-data-trade dataCalibrate對price側同名keyOut校正偏移參數(新幣種之index量級與ETH不同)，結果亦凍結於meta；opt.calibrateIndex為false時直接採定義值
  * opt.series可直接寫入外部自行計算之序列({key:[{time,param}]})，opt.calcs可擴充或覆寫method對應之計算函數
  * 輸出檔名由w-data-trade dataConvert決定: `${cointpe}_${keyKind}_${keyIn}_${keyOut}_${method}_${period}.json`
+ * 每根K線之秒數一律為cfg.intervalSec: 交給dataConvert之各method之optMethod.intervalSec皆為cfg.intervalSec(含不讀選項之orig; 定義之optMethod內若有intervalSec亦以cfg.intervalSec為準)，dataCalibrate之搜尋參數不含intervalSec(optMethodInit與optMethodRef皆去除intervalSec，由buildKp注入)，故凍結於meta之optMethod不含intervalSec
+ * 工作根之口徑(meta/basis.json，見src/util/basis.mjs)於任何寫檔之前檢查: 非4hr之工作根須有一致之口徑標記(首次建立時寫入)，無標記而已有因子序列或meta/params.json者(例如以依時間換算根數之舊版建立者)即throw；4hr(直接下載或外部數據)且未給timeBasis者不寫標記(標記存在時照常讀取比對)
  *
  * @function
  * @param {Object} cfg 輸入normalizeCfg正規化後之設定物件
@@ -304,6 +308,9 @@ let buildParams = async (cfg, opt = {}) => {
             console.log(...args)
         }
     }
+
+    //basisWrite, 工作根之口徑檢查(先於任何建夾與寫檔; 不一致或無標記而已有產物即throw), 須寫標記者於計算前寫入
+    let basisWrite = checkBasis(cfg, 'params')
 
     //fds
     let fdOhlc = cfg.fds.ohlc
@@ -372,6 +379,15 @@ let buildParams = async (cfg, opt = {}) => {
         }
     }
 
+    //basis, 非預設口徑之工作根首次建立時寫入口徑標記(檢查已於函數開頭完成; 寫入於任何序列檔之前, 以重讀 → 比對 → 寫入防他行程同時寫入不同口徑)
+    commitBasis(cfg, basisWrite)
+
+    //omitIv, 去除optMethod內之intervalSec(每根秒數一律由buildKp注入cfg.intervalSec, 不作dataCalibrate之搜尋參數, 亦不凍結於meta)
+    let omitIv = (om) => omit(om, ['intervalSec'])
+
+    //withIv, 交給dataConvert之optMethod一律帶cfg.intervalSec(各method同一每根秒數, 含不讀選項之orig)
+    let withIv = (om) => ({ ...om, intervalSec: cfg.intervalSec })
+
     //meta
     let fpMeta = path.resolve(fdMeta, 'params.json')
     let meta = readJsonOr(fpMeta, null)
@@ -414,8 +430,9 @@ let buildParams = async (cfg, opt = {}) => {
             if (!defRef) {
                 defRef = find(map(CATALOG, validateDef), (d) => d.cointpe === 'price' && d.keyKind === def.keyKind && find(d.methods, { method: m.method }))
             }
+            let optMethodInit = omitIv(m.optMethod)
             if (!calibrateIndex || !defRef) {
-                meta.optMethod[mk] = m.optMethod
+                meta.optMethod[mk] = optMethodInit
                 continue
             }
             let mRef = find(defRef.methods, { method: m.method })
@@ -428,18 +445,19 @@ let buildParams = async (cfg, opt = {}) => {
                 }
             }
             if (pairs.length === 0) {
-                meta.optMethod[mk] = m.optMethod
+                meta.optMethod[mk] = optMethodInit
                 continue
             }
             let keyIn = def.keysIn[0]
             log(`校正index側optMethod: ${mk} (pairs ${map(pairs, 'keyOutSrc').join(',')})`)
-            let r = await wdt.dataCalibrate(kp[m.method], arrIN, arrPN, pairs, m.optMethod, {
+            let r = await wdt.dataCalibrate(kp[m.method], arrIN, arrPN, pairs, optMethodInit, {
                 keyIn,
-                optMethodRef: iseobj(mRef.optMethod) ? mRef.optMethod : {},
+                params: Object.keys(optMethodInit), //搜尋參數明列為optMethod之各鍵(不含intervalSec; 與dataCalibrate之預設相同)
+                optMethodRef: iseobj(mRef.optMethod) ? omitIv(mRef.optMethod) : {},
                 funLog: useShowLog ? (msg) => console.log(`  ${msg}`) : null,
             })
             meta.optMethod[mk] = r.optMethod
-            calibrated.push({ id: def.id, method: m.method, adopt: r.adopt, optMethod: r.optMethod, optMethodInit: m.optMethod, score0: r.score0, scoreBest: r.scoreBest, nEval: r.nEval })
+            calibrated.push({ id: def.id, method: m.method, adopt: r.adopt, optMethod: r.optMethod, optMethodInit, score0: r.score0, scoreBest: r.scoreBest, nEval: r.nEval })
         }
     }
 
@@ -476,7 +494,7 @@ let buildParams = async (cfg, opt = {}) => {
             log(`計算nm: ${def.id}`)
             let methodsProbe = map(methodsRaw, (m) => ({
                 method: m.method,
-                optMethod: m.optMethod,
+                optMethod: withIv(m.optMethod),
                 deals: map(m.deals, (d) => ({ keyIn: d.keyIn, keyOut: d.keyOut, nm: { avg: 0, std: 1 } })),
             }))
             let rs = await wdt.dataConvert(cfg.name, cfg.symbol, cfg.interval, def.cointpe, def.keyKind, methodsProbe, arrNm, kp, fdParam, {
@@ -502,7 +520,7 @@ let buildParams = async (cfg, opt = {}) => {
         //methods, 掛上凍結之nm
         let methods = map(methodsRaw, (m) => ({
             method: m.method,
-            optMethod: m.optMethod,
+            optMethod: withIv(m.optMethod),
             deals: map(m.deals, (d) => {
                 let nk = nmKeyOf(def, m.method, d.keyIn, d.keyOut)
                 let nm = get(meta.nm, nk, null)

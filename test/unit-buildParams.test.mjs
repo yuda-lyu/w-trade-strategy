@@ -347,4 +347,44 @@ describe('buildParams', function() {
         await assert.rejects(buildParams(normalizeCfg(cfg)), /buildOhlc/)
     })
 
+    it('dataCalibrate不把intervalSec當搜尋參數: 定義之optMethod內有intervalSec時亦去除, 校正期間calc恆收到cfg.intervalSec; 凍結於meta之optMethod不含intervalSec', async function() {
+        this.timeout(120000)
+        //spec(規則帳本TS-11): w-data-trade之dataCalibrate預設opt.params為optMethodInit全部鍵, 須排除intervalSec(每根時長為固定值, 不是校正參數)
+        let { cfg } = cfgOf(fdTmp, 300, { root: path.resolve(fdTmp, 'cal-iv') })
+        let c = normalizeCfg(cfg)
+        await buildOhlc(c)
+        let seen = new Set()
+        let calcX = async (arr, keyIn, om) => {
+            seen.add(om.intervalSec)
+            let plus = Number(om.plusClose || 0)
+            return [{ period: '1bar', len: 1, vs: arr.map((v, i) => ({ time: v.time, X: v.Close + plus + Math.sin(i * 0.37), XMod: v.Close * 1000 + plus * 1000 + Math.cos(i * 0.29) })) }]
+        }
+        let defs = [
+            { id: 'price_ohlc_x', cointpe: 'price', keyKind: 'ohlc', fields: ['Close'], keysIn: [], methods: [{ method: 'myx', deals: [{ keyOut: 'X' }] }] },
+            { id: 'index_ohlc_x', cointpe: 'index', keyKind: 'ohlc', fields: ['Close'], keysIn: [], methods: [{ method: 'myx', optMethod: { plusClose: 0.01, intervalSec: 3600 }, deals: [{ keyOut: 'XMod' }] }] },
+        ]
+        let r = await buildParams(c, { defs, calcs: { myx: calcX } })
+        assert.deepStrictEqual([...seen], [14400]) //校正(參考側與搜尋各點)與寫出皆為cfg.intervalSec
+        assert.strictEqual(r.calibrated.length, 1)
+        assert.ok(!('intervalSec' in r.calibrated[0].optMethod))
+        assert.ok(!('intervalSec' in r.calibrated[0].optMethodInit))
+        let meta = JSON.parse(fs.readFileSync(path.resolve(c.fds.meta, 'params.json'), 'utf8'))
+        assert.ok(!('intervalSec' in meta.optMethod['index_ohlc_x:myx']), JSON.stringify(meta.optMethod))
+        assert.ok(r.keys.includes('index_ohlc_none_XMod_myx_1bar') && r.keys.includes('price_ohlc_none_X_myx_1bar'))
+    })
+
+    it('dataConvert之各method同一intervalSec(含不讀選項之orig): 定義中某method之optMethod另給不同之intervalSec時, 一律以cfg.intervalSec寫出(標籤依cfg之每根時長)', async function() {
+        this.timeout(120000)
+        //spec(w-data-trade 1.0.50): 同一次dataConvert之各method之optMethod.intervalSec須相同, 否則拒絕且輸出夾為空; 本套件以cfg.intervalSec統一
+        let { cfg } = cfgOf(fdTmp, 300, { root: path.resolve(fdTmp, 'conv-iv') })
+        let c = normalizeCfg(cfg)
+        await buildOhlc(c)
+        let defs = [{ id: 'price_ohlc_mix', cointpe: 'price', keyKind: 'ohlc', fields: ['Close'], keysIn: ['Close'], methods: [{ method: 'orig', deals: [{ keyOut: 'param' }] }, { method: 'ma', deals: [{ keyOut: 'param' }] }, { method: 'ema', optMethod: { intervalSec: 3600 }, deals: [{ keyOut: 'param' }] }] }]
+        let r = await buildParams(c, { defs })
+        assert.ok(r.keys.includes('price_ohlc_Close_param_ma_1day'), r.keys.join(','))
+        assert.ok(r.keys.includes('price_ohlc_Close_param_ema_1day'), r.keys.join(','))
+        assert.ok(!r.keys.some((k) => k.endsWith('_6hr')), r.keys.join(','))
+        assert.ok(r.keys.includes('price_ohlc_Close_param_orig_none'), r.keys.join(','))
+    })
+
 })

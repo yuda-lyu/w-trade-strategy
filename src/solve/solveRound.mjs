@@ -14,6 +14,8 @@ import makeFastEngine from './fastEngine.mjs'
 import { filterKeysCloseOnly } from '../params/keysCloseOnly.mjs'
 import { makeOtt } from '../util/ott.mjs'
 import { ensureFolder } from '../util/fsx.mjs'
+import { barTimeOf } from '../cfg.mjs'
+import { basisPendingOf, commitBasis } from '../util/basis.mjs'
 
 
 /**
@@ -130,7 +132,7 @@ let prepareSolve = async (cfg, opt = {}) => {
     fdStrategies = isestr(fdStrategies) ? path.resolve(fdStrategies) : cfg.fds.strategies
     ensureFolder(fdStrategies)
 
-    //keysNoData, 訓練期(各方向終點取最早者)內無數據之因子: 長週期指標(如30day之adx)之序列起點可能晚於訓練期終點,
+    //keysNoData, 訓練期(各方向終點取最早者)內無數據之因子: 長期別之指標(根數多者, 如根數180之adx; 根數為本, 其時間跨度隨每根時長而變)之序列起點可能晚於訓練期終點,
     //  w-data-tdprovide對區間內無資料之key會throw, 隨機挑到即整輪失敗, 故於準備期算出並由下列過濾函數剔除(estimPicks自列全部key, 須經過濾函數才生效)
     let provideData = dataProvide(cfg.fds.ohlc, cfg.fds.param)
     let keysAll = provideData.getKeysParam()
@@ -198,14 +200,91 @@ let prepareSolve = async (cfg, opt = {}) => {
 
 
 /**
+ * 決定口徑之求解選項鍵(opt.oml內不得出現): thsCond、levelNumTradeBounds記於工作根之口徑標記，intervalSec、timeBasis由cfg決定
+ *
+ * @type {Array}
+ */
+let OML_BASIS_KEYS = Object.freeze(['thsCond', 'levelNumTradeBounds', 'intervalSec', 'timeBasis'])
+
+/**
+ * 求解器保留之鍵(opt.oml內不得出現): 存檔前之官方重跑之開關與回呼(`useRunStrategyBeforeSave`、`funRunStrategyCustomBeforeSave`)
+ *
+ * 口徑標記於首個策略存檔之前、由該回呼寫入(見runRound之funBeforeSave); 攤平時oml內之同名鍵會覆寫之(如`useRunStrategyBeforeSave: false`)，使存檔前不經官方重跑、不寫標記，策略於無標記下存檔(口徑標記與落地口徑皆被繞過)
+ *
+ * @type {Array}
+ */
+let OML_RESERVED_KEYS = Object.freeze(['useRunStrategyBeforeSave', 'funRunStrategyCustomBeforeSave'])
+
+
+/**
+ * 檢測opt.oml(最佳化演算法設定，如Np、Ng，攤平後原樣傳遞)不含口徑鍵(OML_BASIS_KEYS)與求解器保留之鍵(OML_RESERVED_KEYS)
+ *
+ * oml之鍵於攤平時會覆寫轉傳給w-trade-solve之同名口徑(thsCond、levelNumTradeBounds、intervalSec、timeBasis)，而工作根之口徑標記只記opt.<鍵>之值，故含口徑鍵者可繞過標記；含者即throw `invalid opt.oml.<鍵>: must be given as opt.<鍵>`(固定訊息，不含輸入值)，口徑鍵一律以opt.<鍵>給(intervalSec、timeBasis由cfg決定)
+ * 含求解器保留之鍵(useRunStrategyBeforeSave、funRunStrategyCustomBeforeSave: 存檔前官方重跑與口徑標記之寫入皆經此回呼，覆寫者使策略於無標記且未經官方重跑下存檔)者即throw `invalid opt.oml.<鍵>: must not be given (reserved by the solver)`
+ * oml為null、未給或非物件者不檢(同攤平之條件)
+ *
+ * @function
+ * @param {Object} opt 輸入求解設定物件
+ * @returns {undefined} 無回傳
+ * @example
+ *
+ * chkOml({ oml: { Np: 20 } })
+ * console.log(typeof chkOml)
+ * // => function
+ *
+ */
+let chkOml = (opt) => {
+    let oml = get(opt, 'oml', null)
+    if (oml === null || typeof oml !== 'object') {
+        return
+    }
+    let ks = Object.keys(oml)
+    for (let k of OML_BASIS_KEYS) {
+        if (ks.includes(k)) {
+            throw new Error(`invalid opt.oml.${k}: must be given as opt.${k}`)
+        }
+    }
+    for (let k of OML_RESERVED_KEYS) {
+        if (ks.includes(k)) {
+            throw new Error(`invalid opt.oml.${k}: must not be given (reserved by the solver)`)
+        }
+    }
+}
+
+
+/**
+ * 求解選項中原樣轉傳w-trade-solve之鍵(thsTp、thsSl、thsCond、levelNumTradeBounds): 給了(非null與undefined)即轉傳, 含非陣列、空陣列等無效值(由w-trade-solve檢測並拋錯, 不在此吞掉或改用預設)
+ *
+ * @function
+ * @param {Object} opt 輸入求解設定物件
+ * @returns {Object} 回傳須轉傳之鍵值物件
+ * @example
+ *
+ * console.log(JSON.stringify(solveFwdOf({ thsTp: 'x', thsSl: [], thsCond: [-1, 1], levelNumTradeBounds: null, thEqYr: 0.1 })))
+ * // => {"thsTp":"x","thsSl":[],"thsCond":[-1,1]}
+ *
+ */
+let solveFwdOf = (opt) => {
+    let o = {}
+    for (let k of ['thsTp', 'thsSl', 'thsCond', 'levelNumTradeBounds']) {
+        if (opt[k] !== undefined && opt[k] !== null) {
+            o[k] = opt[k]
+        }
+    }
+    return o
+}
+
+
+/**
  * 執行一輪求解: 隨機(或指定)交易方向與指標組成，呼叫w-trade-solve estimFinder於訓練期內率定門檻與止盈止損，達門檻之策略寫入策略庫
+ * 工作根之口徑標記: 非預設口徑者於首個策略存檔之前寫入(見src/util/basis.mjs之commitBasis；已記他口徑即throw，不存任何策略)
  *
  * @function
  * @param {Object} cfg 輸入normalizeCfg正規化後之設定物件
  * @param {Object} opt 輸入求解設定物件(見solve)
  * @param {Object} prep 輸入prepareSolve之回傳
  * @param {Object} [hooks={}] 輸入事件回呼{onCandidate(ev)}，onCandidate於每個達門檻且將存檔之候選策略觸發(存檔前官方重跑之後)
- * @returns {Promise} 回傳Promise，resolve為{mode,comps,timeStart,timeEnd,candidates,elapsedMs}；cfg.settings含unit(基礎單位)時以cfg.settings.uIni與unit求解(策略之settings記錄之；單一策略之最大持倉名義不設門檻)
+ * @returns {Promise} 回傳Promise，resolve為{mode,comps,timeStart,timeEnd,candidates,elapsedMs}；cfg.settings含unit(基礎單位)時以cfg.settings.uIni與unit求解(策略之settings記錄之；單一策略之最大持倉名義不設門檻)；cfg.timeBasis有給時另以intervalSec與timeBasis求解(策略之settings於末記錄之)；opt之thsTp、thsSl、thsCond、levelNumTradeBounds給了(非null與undefined)即原樣轉傳w-trade-solve(有效性由其檢測，錯誤原樣上拋)
  * @example
  * need test in nodejs.
  *
@@ -233,9 +312,16 @@ let runRound = async (cfg, opt, prep, hooks = {}) => {
     //comps
     let comps = sample(prep.comps)
 
+    //basisPending, 非預設口徑之工作根於首個策略存檔之前寫入口徑標記(重讀 → 比對 → 寫入; 已記他口徑即throw, 本輪不存任何策略); 預設口徑為null(不讀寫)
+    let basisPending = basisPendingOf(cfg, opt)
+
     //funBeforeSave, 存檔前官方重跑(落地口徑與完整版相同), 並觸發候選事件
     let candidates = 0
     let funBeforeSave = async ({ ott, strategy, funGetSeries }) => {
+        if (basisPending !== null) {
+            commitBasis(cfg, basisPending)
+            basisPending = null
+        }
         let r = await runStrategy(ott, strategy, funGetSeries)
         candidates++
         if (isfun(hooks.onCandidate)) {
@@ -268,11 +354,7 @@ let runRound = async (cfg, opt, prep, hooks = {}) => {
     if (prep.engine === 'fast') {
         o.funRunStrategyCustom = prep.fast
     }
-    for (let k of ['thsTp', 'thsSl']) {
-        if (isearr(opt[k])) {
-            o[k] = opt[k]
-        }
-    }
+    Object.assign(o, solveFwdOf(opt)) //thsTp、thsSl、thsCond、levelNumTradeBounds給了即原樣轉傳(含無效值: 由w-trade-solve檢測並拋錯, 錯誤原樣上拋)
     for (let k of ['thNumTrade', 'thRWin', 'thREquivalentCumuProfitOrLossFinalNormYear']) {
         if (isnum(opt[k])) {
             o[k] = opt[k]
@@ -281,6 +363,7 @@ let runRound = async (cfg, opt, prep, hooks = {}) => {
     if (isnum(get(opt, 'thEqYr'))) {
         o.thREquivalentCumuProfitOrLossFinalNormYear = opt.thEqYr //別名: 最低等效年化(比例, 如0.15)
     }
+    chkOml(opt) //oml不得含口徑鍵(攤平會覆寫轉傳之口徑而繞過口徑標記; createSolver已先檢查, 直接呼叫runRound者亦同)
     let oml = get(opt, 'oml', null)
     if (oml && typeof oml === 'object') {
         o = { ...o, ...oml } //最佳化演算法設定(Np、Ng、NContiguous等, 原樣傳遞至w-optimization)
@@ -292,11 +375,18 @@ let runRound = async (cfg, opt, prep, hooks = {}) => {
         o.unit = cfg.settings.unit
     }
 
+    //barTime, 時間口徑: cfg.timeBasis有給時把每根秒數與時間口徑交給estimKeys(寫入策略之settings; 加速核心與存檔前之官方重跑皆依strategy.settings); 未給時不傳(同既有)
+    let barTime = barTimeOf(cfg)
+    if (barTime !== null) {
+        o.intervalSec = barTime.intervalSec
+        o.timeBasis = barTime.timeBasis
+    }
+
     await estimFinder(prep.ott, cfg.name, cfg.symbol, cfg.interval, cfg.fds.ohlc, cfg.fds.param, prep.fdStrategies, o)
 
     return { mode, comps, timeStart, timeEnd, candidates, elapsedMs: Date.now() - t0 }
 }
 
 
-export { COMPS_ALL, classifyKeys, parseComps, allowedComps, prepareSolve, runRound }
+export { COMPS_ALL, OML_BASIS_KEYS, OML_RESERVED_KEYS, classifyKeys, parseComps, allowedComps, prepareSolve, chkOml, solveFwdOf, runRound }
 export default runRound

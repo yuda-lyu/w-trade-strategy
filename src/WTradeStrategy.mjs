@@ -2,9 +2,9 @@
 //  不另放邏輯; 各模組之函數皆可自其檔以深層路徑取用
 import readStrategies from 'w-trade-solve/src/readStrategies.mjs'
 import createPipeline from './createPipeline.mjs'
-import normalizeCfg, { INTERVALS, FDS, CFG_KEYS, intervalSec, serializableCfg, normalizeUnit } from './cfg.mjs'
+import normalizeCfg, { INTERVALS, FDS, CFG_KEYS, intervalSec, serializableCfg, normalizeUnit, barTimeOf, rawKeyOf } from './cfg.mjs'
 import fetchBinance, { ENDPOINT_PRICE, ENDPOINT_INDEX } from './data/fetchBinance.mjs'
-import buildOhlc, { HEADS_PRICE, HEADS_INDEX, normalizeExternal, isBarComplete } from './data/buildOhlc.mjs'
+import buildOhlc, { HEADS_PRICE, HEADS_INDEX, normalizeExternal, isBarComplete, checkBarGrid, gapsOf } from './data/buildOhlc.mjs'
 import buildParams, { buildKp, validateDef, nmKeyOf } from './params/buildParams.mjs'
 import buildCache, { TPS_DEFAULT, fpCacheOf } from './cache/buildCache.mjs'
 import sweepSingle from './sweep/sweepSingle.mjs'
@@ -21,13 +21,14 @@ import { isKeyCloseOnly, filterKeysCloseOnly, compsCloseOnly } from './params/ke
 import { makeOtt } from './util/ott.mjs'
 import parfor from './util/parfor.mjs'
 import { countJson } from './util/fsx.mjs'
+import { basisOf, readBasis, checkBasis, commitBasis } from './util/basis.mjs'
 
 
 /**
  * 策略庫建置管線套件之聚合物件(與各模組之匯出為同一實體)
  *
  * 總組裝：createPipeline(cfg)(別名createTradeStrategy)；階段函數：fetchBinance、buildOhlc、buildParams、buildCache、sweepSingle、sweepPairs、solve、createSolver、recomputeStrategies(策略庫依基礎單位重算)；
- * 設定與常數：normalizeCfg、normalizeUnit、CFG_KEYS、INTERVALS、FDS、CATALOG、COMPS_ALL、compsCloseOnly、TPS_DEFAULT、EVENT_KEYS、SOLVE_OPT_KEYS、RECOMPUTE_MODES、RECOMPUTE_FAIL_STATUSES；
+ * 設定與常數：normalizeCfg、normalizeUnit、barTimeOf(時間口徑)、rawKeyOf(幣安下載結果之資料夾名)、basisOf、readBasis、checkBasis與commitBasis(工作根之口徑標記)、CFG_KEYS、INTERVALS、FDS、CATALOG、COMPS_ALL、compsCloseOnly、TPS_DEFAULT、EVENT_KEYS、SOLVE_OPT_KEYS、RECOMPUTE_MODES、RECOMPUTE_FAIL_STATUSES；
  * 工具：classifyKeys、parseComps、allowedComps、isKeyCloseOnly、filterKeysCloseOnly、readStrategies、countStrategies、makeOtt、parfor等
  *
  * @type {Object}
@@ -55,6 +56,12 @@ let WTradeStrategy = {
     INTERVALS,
     FDS,
     intervalSec,
+    barTimeOf,
+    rawKeyOf,
+    basisOf,
+    readBasis,
+    checkBasis,
+    commitBasis,
 
     //數據
     fetchBinance,
@@ -65,6 +72,8 @@ let WTradeStrategy = {
     HEADS_INDEX,
     normalizeExternal,
     isBarComplete,
+    checkBarGrid,
+    gapsOf,
 
     //參數
     buildParams,

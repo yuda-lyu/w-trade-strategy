@@ -47,7 +47,22 @@ let diffSummary = (a, b) => {
 
 
 /**
- * 重算前後之識別不變檢查: 交易筆數、已平倉筆數、勝率(INVARIANT_KEYS)須與原摘要相同，且以新摘要所組之檔名須與以原摘要所組者相同
+ * 取組策略檔名所用之交易次數級距設定(檔內solve.levelNumTradeBounds；以w-trade-solve之opt.levelNumTradeBounds求得之策略記之，未記者為null即預設級距)
+ *
+ * @function
+ * @param {Object} data 輸入策略檔內容
+ * @returns {Object} 回傳genStrategyFileName之opt物件{levelNumTradeBounds}
+ * @example
+ *
+ * console.log(optFnOf({ solve: { levelNumTradeBounds: [1, 3, 6] } }), optFnOf({ solve: {} }))
+ * // => { levelNumTradeBounds: [ 1, 3, 6 ] } { levelNumTradeBounds: null }
+ *
+ */
+let optFnOf = (data) => ({ levelNumTradeBounds: get(data, 'solve.levelNumTradeBounds', null) })
+
+
+/**
+ * 重算前後之識別不變檢查: 交易筆數、已平倉筆數、勝率(INVARIANT_KEYS)須與原摘要相同，且以新摘要所組之檔名須與以原摘要所組者相同(檔名以檔內solve.levelNumTradeBounds之級距設定組成，見optFnOf)
  *
  * @function
  * @param {Object} data 輸入原策略檔內容(含name、interval、mode、conds或keys、settings、summary)
@@ -64,8 +79,9 @@ let diffSummary = (a, b) => {
 let checkInvariant = (data, settingsNew, summaryNew) => {
     let keys = Array.isArray(data.keys) ? data.keys : map(data.conds, 'key')
     let bad = INVARIANT_KEYS.filter((k) => JSON.stringify(get(summaryNew, k)) !== JSON.stringify(get(data, `summary.${k}`)))
-    let fnNew = genStrategyFileName(data.name, data.interval, data.mode, keys, settingsNew, summaryNew)
-    let fnOld = genStrategyFileName(data.name, data.interval, data.mode, keys, data.settings, data.summary)
+    let optFn = optFnOf(data)
+    let fnNew = genStrategyFileName(data.name, data.interval, data.mode, keys, settingsNew, summaryNew, optFn)
+    let fnOld = genStrategyFileName(data.name, data.interval, data.mode, keys, data.settings, data.summary, optFn)
     if (fnNew !== fnOld) {
         bad.push('(fileName)')
     }
@@ -106,7 +122,7 @@ let unitsMaxOf = (summary, settings) => {
  * 檔名與檔內交易次數級距不一致之舊檔另記nameMismatch(只列、不擋; 輸出沿用原檔名); 例外一律以status 'error'回傳(不中斷worker)
  *
  * @function
- * @param {Object} init 輸入{fdIn,fdOhlc,fdParam,timeZone,mode,target}，mode為'verify'、'dry'或'write'，target為{uIni,unit}(verify時可為null)
+ * @param {Object} init 輸入{fdIn,fdOhlc,fdParam,timeZone,mode,target}，mode為'verify'、'dry'或'write'，target為{uIni,unit}(verify時可為null; cfg.timeBasis有給時另含intervalSec與timeBasis, 新口徑之settings於末記之)
  * @param {Object} [deps={}] 輸入可替換之相依{runStrategy}(只供直接呼叫之測試注入; worker經workerData建立時不給)，預設{}
  * @returns {Function} 回傳async函數core(job) => 結果物件{fn,status,...}，job為{fn}
  * @example
@@ -152,7 +168,7 @@ let createCore = (init, deps = {}) => {
 
             //nm, 檔名與檔內交易次數級距不一致之舊檔(只列, 不擋; 輸出沿用原檔名)
             let keys = Array.isArray(data.keys) ? data.keys : map(data.conds, 'key')
-            let nm = genStrategyFileName(data.name, data.interval, data.mode, keys, data.settings, data.summary) !== fn ? { nameMismatch: true } : {}
+            let nm = genStrategyFileName(data.name, data.interval, data.mode, keys, data.settings, data.summary, optFnOf(data)) !== fn ? { nameMismatch: true } : {}
 
             //忠實重放: 以檔內settings重跑, 摘要須與檔內逐欄相同
             let r0 = await run(ott, data, fgs)
@@ -175,6 +191,10 @@ let createCore = (init, deps = {}) => {
 
             //already, 檔內settings已為目標口徑(且fitness為現行算法): uIni與unit之數字字串與同值之數字視為相同(以轉為數值後比較, unit之同一口徑即buildBaseUnitNotional之key相同, 記錄欄asOf、source與其他欄亦須相同)
             let settings1 = { ...data.settings, uIni: target.uIni, unit: target.unit }
+            if (target.timeBasis !== undefined && target.timeBasis !== null) {
+                settings1.intervalSec = target.intervalSec //時間口徑(目標口徑有之時; 見recomputeStrategies之cfg.timeBasis): 接於末, 檔內已有者原位覆寫
+                settings1.timeBasis = target.timeBasis
+            }
             if (isEqual(numericSettingsOf(data.settings), settings1) && !ext.fitnessStale) {
                 return { fn, status: 'already', eqYr0, eqYr1: eqYr0, th, uTradeAllMax1: data.summary.uTradeAllMax, unitsMax1: unitsMaxOf(data.summary, data.settings), ...nm }
             }
@@ -208,5 +228,5 @@ let createCore = (init, deps = {}) => {
 }
 
 
-export { INVARIANT_KEYS, diffSummary, checkInvariant }
+export { INVARIANT_KEYS, diffSummary, optFnOf, checkInvariant }
 export default createCore

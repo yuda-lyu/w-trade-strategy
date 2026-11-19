@@ -9,6 +9,7 @@ import genStrategyFileName from 'w-trade-solve/src/genStrategyFileName.mjs'
 import parfor from '../util/parfor.mjs'
 import { sweepCfgOf } from './common.mjs'
 import { ensureFolder, cleanFolder, listJsonKeys, writeJson } from '../util/fsx.mjs'
+import { checkBasis, commitBasis } from '../util/basis.mjs'
 
 
 /**
@@ -29,7 +30,7 @@ import { ensureFolder, cleanFolder, listJsonKeys, writeJson } from '../util/fsx.
  * @param {Boolean} [opt.cleanFdOut=true] 輸入開跑前是否清空輸出資料夾
  * @param {Function} [opt.filterKeys] 輸入因子key過濾函數(keys) => keys，可為async
  * @param {Function} [opt.onProgress] 輸入進度回呼({i,n,nOut,elapsedMs})
- * @returns {Promise} 回傳Promise，resolve為{nFactors,nOut,fdTar,elapsedMs}；cfg.settings含unit(基礎單位)時每單名義依基礎單位、策略檔之settings記錄unit(單一策略之最大持倉名義不設門檻，只隨summary落地)
+ * @returns {Promise} 回傳Promise，resolve為{nFactors,nOut,fdTar,elapsedMs}；cfg.settings含unit(基礎單位)時每單名義依基礎單位、策略檔之settings記錄unit(單一策略之最大持倉名義不設門檻，只隨summary落地)；cfg.timeBasis有給時策略檔之settings於末另記intervalSec與timeBasis(摘要依之計回測天數)；開跑前檢查工作根之口徑(meta/basis.json，見src/util/basis.mjs)，不一致即throw
  * @example
  * need test in nodejs.
  *
@@ -50,6 +51,9 @@ let sweepSingle = async (cfg, opt = {}) => {
     let cleanFdOut = get(opt, 'cleanFdOut', true) !== false
     let onProgress = get(opt, 'onProgress', null)
 
+    //basisWrite, 工作根之口徑檢查(先於任何寫檔; 不一致或無標記而已有他口徑之產物即throw)
+    let basisWrite = checkBasis(cfg, 'sweepSingle', { fdTar, fdsCleared: cleanFdOut ? [fdTar] : [] })
+
     //keys
     let keys = listJsonKeys(cfg.fds.param)
     if (isfun(opt.filterKeys)) {
@@ -69,6 +73,9 @@ let sweepSingle = async (cfg, opt = {}) => {
         let arr = await provideData.getTimeSeriesByTimeRange(factor, sc.tr.ts, sc.tr.te)
         jobs.push({ factor, arr, numTradeFinMin, useAssm, usePlateau })
     }
+
+    //basis, 非預設口徑之工作根首次產出時寫入口徑標記(重讀 → 比對 → 寫入)
+    commitBasis(cfg, basisWrite)
 
     //fdTar
     if (cleanFdOut) {

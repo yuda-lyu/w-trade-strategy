@@ -11,7 +11,7 @@ import isenum from 'wsemi/src/isenum.mjs'
 import isestr from 'wsemi/src/isestr.mjs'
 import isfun from 'wsemi/src/isfun.mjs'
 import parfor from '../util/parfor.mjs'
-import { normalizeUnit } from '../cfg.mjs'
+import { normalizeUnit, barTimeOf } from '../cfg.mjs'
 import { ensureFolder } from '../util/fsx.mjs'
 import relationOf from './pathRelation.mjs'
 import { acquireRecomputeLock, releaseRecomputeLock } from './recomputeLock.mjs'
@@ -113,6 +113,8 @@ let pkgVersionOf = (name) => {
  * 入庫門檻取檔內solve.thREquivalentCumuProfitOrLossFinalNormYear；檔內無門檻者，給opt.thEqYr即以之計(nThFallback)，未給則列為noThreshold、不計入跨門檻(套件不給預設門檻)
  * 檔內settings已等於目標者(uIni之數值相同、unit以buildBaseUnitNotional之key判同一口徑且記錄欄asOf、source與其他欄相同；檔內settings.uIni與settings.unit之數字字串與數字同值者視為相同〔回測套件1.1.43起對兩者皆收數字字串並轉型，忠實重放可通過〕，already者逐位複製含原字串寫法)且fitness為現行算法者為already；檔內settings.uIni為無效值(非數字字串、非正數或非數值型別)者於忠實重放時被回測套件拒絕，記error(訊息不含輸入值)、不中斷整批；選項之數字字串(uIni、unit、thEqYr、takeLimit、limit)檢測通過即轉為數值，錯誤訊息為`invalid opt.<名稱>: must be <種類>`、不含輸入值
  * 只處理fdIn第1層之json檔(依檔名排序)；不新增、不刪除、不改名任何策略檔；相對路徑皆相對於呼叫時之工作目錄(process.cwd())
+ * 時間口徑: 忠實重放以檔內settings(含其intervalSec、timeBasis)；cfg.timeBasis有給時目標口徑另含{intervalSec,timeBasis}(新口徑之settings記之，摘要依之重算；交易筆數、已平倉筆數、勝率與檔名照常斷言不變)，未給時檔內之時間欄原樣保留(同既有)
+ * 交易次數級距: 檔名之不變檢查與nameMismatch以檔內solve.levelNumTradeBounds(以w-trade-solve之opt.levelNumTradeBounds求得者)呼叫genStrategyFileName，未記者為預設級距(同既有)
  *
  * @function
  * @param {Object} cfg 輸入normalizeCfg正規化後之設定物件(使用fds.ohlc、fds.param、fds.strategies、fds.meta、timeZone與settings)
@@ -183,6 +185,10 @@ let recomputeStrategies = async (cfg, opt = {}, deps = {}) => {
             throw new Error(`invalid ${nameUIni}: must be a positive number`)
         }
         target = { uIni: cdbl(uIni), unit }
+        let barTime = barTimeOf(cfg)
+        if (barTime !== null) {
+            target = { ...target, ...barTime } //時間口徑(cfg.timeBasis有給時): 新口徑之settings另記intervalSec與timeBasis(接於末); 未給時目標口徑與既有相同(檔內settings之時間欄原樣保留)
+        }
     }
 
     //thEqYr, 套件不給預設門檻; 給予時須為有效數字(數字或數字字串, 通過即轉為數值)

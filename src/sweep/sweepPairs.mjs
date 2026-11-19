@@ -12,6 +12,7 @@ import { sweepCfgOf } from './common.mjs'
 import buildP2Data from './sweepPairs_data.mjs'
 import dedupStrategies from './dedupStrategies.mjs'
 import { ensureFolder, cleanFolder, writeJson } from '../util/fsx.mjs'
+import { checkBasis, commitBasis } from '../util/basis.mjs'
 
 
 /**
@@ -33,7 +34,7 @@ import { ensureFolder, cleanFolder, writeJson } from '../util/fsx.mjs'
  * @param {Number} [opt.dedupOverlap=null] 輸入入庫去重門檻(0~1，進場Jaccard>此值視同質只留高分)，null為關閉
  * @param {Boolean} [opt.cleanFdOut=true] 輸入開跑前是否清空輸出資料夾
  * @param {Function} [opt.onProgress] 輸入進度回呼({i,n,nOut,nBuf,elapsedMs})
- * @returns {Promise} 回傳Promise，resolve為{nJobs,nOut,nDrop,fdTar,elapsedMs}；cfg.settings含unit(基礎單位)時每單名義依基礎單位、策略檔之settings記錄unit(單一策略之最大持倉名義不設門檻，只隨summary落地)
+ * @returns {Promise} 回傳Promise，resolve為{nJobs,nOut,nDrop,fdTar,elapsedMs}；cfg.settings含unit(基礎單位)時每單名義依基礎單位、策略檔之settings記錄unit(單一策略之最大持倉名義不設門檻，只隨summary落地)；cfg.timeBasis有給時策略檔之settings於末另記intervalSec與timeBasis(摘要依之計回測天數)；開跑前檢查工作根之口徑(meta/basis.json，見src/util/basis.mjs)，不一致即throw
  * @example
  * need test in nodejs.
  *
@@ -64,6 +65,9 @@ let sweepPairs = async (cfg, opt = {}) => {
         throw new Error(`單因子策略資料夾[${fdF1}]不存在, 請先執行sweepSingle`)
     }
 
+    //basisWrite, 工作根之口徑檢查(先於任何寫檔; 不一致或無標記而已有他口徑之產物即throw; 輸入之單因子策略夾亦屬工作根之產物)
+    let basisWrite = checkBasis(cfg, 'sweepPairs', { fdTar, fdsCleared: cleanFdOut ? [fdTar] : [] })
+
     //1) precompute
     let p2data = await buildP2Data(cfg, sc, fdF1, { limit })
 
@@ -74,6 +78,9 @@ let sweepPairs = async (cfg, opt = {}) => {
             jobs.push({ mode, i, numTradeFinMin, eqYrMin, useAssm, withMask: dedupOverlap !== null })
         }
     }
+
+    //basis, 非預設口徑之工作根首次產出時寫入口徑標記(重讀 → 比對 → 寫入)
+    commitBasis(cfg, basisWrite)
 
     //3) fdTar
     if (cleanFdOut) {

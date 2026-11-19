@@ -4,9 +4,10 @@ import get from 'lodash-es/get.js'
 import isestr from 'wsemi/src/isestr.mjs'
 import isfun from 'wsemi/src/isfun.mjs'
 import isnum from 'wsemi/src/isnum.mjs'
-import { prepareSolve, runRound } from './solveRound.mjs'
+import { prepareSolve, runRound, chkOml } from './solveRound.mjs'
 import { serializableCfg } from '../cfg.mjs'
 import { ensureFolder, countJson } from '../util/fsx.mjs'
+import { checkBasis } from '../util/basis.mjs'
 
 
 /**
@@ -25,7 +26,7 @@ let EVENT_KEYS = Object.freeze(['onReady', 'onRound', 'onCandidate', 'onProgress
 let SOLVE_OPT_KEYS = Object.freeze([
     'fdStrategies', 'engine', 'methodOml', 'workers', 'closeOnly', 'comps', 'mode',
     'funFilterKeysNorm', 'funFilterKeysIndex', 'funFilterKeysVolumn',
-    'thsTp', 'thsSl', 'thNumTrade', 'thRWin', 'thEqYr', 'thREquivalentCumuProfitOrLossFinalNormYear', 'oml',
+    'thsTp', 'thsSl', 'thsCond', 'levelNumTradeBounds', 'thNumTrade', 'thRWin', 'thEqYr', 'thREquivalentCumuProfitOrLossFinalNormYear', 'oml',
     'maxStrategies', 'maxRounds', 'maxTimeMs', 'maxRoundsPerWorker', 'useShowLog',
     ...EVENT_KEYS,
 ])
@@ -38,6 +39,8 @@ let SOLVE_OPT_KEYS = Object.freeze([
  * 預設engine為'fast'(加速評估核心，存檔前官方重跑)，'full'為全程官方runStrategy
  * opt.workers為0時於本程序內循序執行(opt可含函數)，>0時以worker_threads平行執行(opt除事件欄位外不可含函數，改用closeOnly等旗標)
  * 停止條件: maxStrategies(策略庫檔數達此即停)、maxRounds(總輪數)、maxTimeMs、shouldStop(status) => bool、或呼叫stop()；起跑前即成立者不起任何輪次(workers>0亦同，不起worker)；workers>0時各worker每輪結束皆等主程序放行才起下一輪，故停止條件成立時進行中之他worker至多再完成當輪(總輪數至多超出workers-1)
+ * 時間口徑: cfg.timeBasis有給時以{intervalSec,timeBasis}交給w-trade-solve之estimFinder(寫入策略之settings，加速核心與存檔前之官方重跑皆依之)；未給時不傳(同既有)
+ * 工作根之口徑(meta/basis.json，見src/util/basis.mjs): 建立求解器時檢查(每根秒數、時間口徑、thsCond、levelNumTradeBounds須與標記一致；無標記而為非預設口徑時策略庫須為空)，不一致即throw；須寫標記者於首個策略存檔之前以重讀 → 比對 → 寫入(見runRound；中止後同設定再跑不被拒，兩個求解器交錯時後到者於存檔前即throw)；4hr且未給timeBasis、thsCond、levelNumTradeBounds者不寫標記(標記存在時照常比對)
  * 資源閘: opt.gate為async ({workerId,...status}) => {}，每輪起跑前(含workers>0各worker之第1輪)由主程序await之後才放行，可於其中量CPU/RAM，超限時延後resolve以節流；閘resolve後再查一次停止條件，成立即不放行(workers>0時所有worker，含仍在別的閘內等待者，皆收到stop並結束)；閘拋錯(含rejection)記入errors並觸發onError，照常放行；已要求停止後不再呼叫閘；stop()隨時生效(不等閘)，shouldStop、maxTimeMs、maxStrategies於輪次結束與每個閘resolve後判定，閘不resolve者不會被判定；停止後閘之promise不被取消(閘內宜自行檢查停止)
  *
  * @function
@@ -52,6 +55,8 @@ let SOLVE_OPT_KEYS = Object.freeze([
  * @param {String} [opt.mode] 輸入固定交易方向'long'或'short'，未給時每輪隨機
  * @param {Array} [opt.thsTp] 輸入止盈門檻百分比陣列，預設1~10
  * @param {Array} [opt.thsSl] 輸入止損門檻百分比陣列，預設1~10
+ * @param {Array} [opt.thsCond] 輸入各key條件門檻之格點陣列(原樣轉傳w-trade-solve之opt.thsCond；有效性與錯誤訊息由其決定，錯誤原樣上拋)，未給為w-trade-solve之預設格點
+ * @param {Array} [opt.levelNumTradeBounds] 輸入交易次數各級距之下界陣列(原樣轉傳w-trade-solve之opt.levelNumTradeBounds；記於策略檔之solve.levelNumTradeBounds，策略庫重算以之組檔名)，未給為預設級距
  * @param {Number} [opt.thNumTrade=1] 輸入存檔之最少交易次數
  * @param {Number} [opt.thRWin=0.5] 輸入存檔之最低勝率
  * @param {Number} [opt.thEqYr=0.15] 輸入存檔之最低等效年化(比例)
@@ -60,7 +65,7 @@ let SOLVE_OPT_KEYS = Object.freeze([
  * @param {Function} [opt.funFilterKeysIndex] 輸入指數類因子key之過濾函數，規則同funFilterKeysNorm
  * @param {Function} [opt.funFilterKeysVolumn] 輸入成交量類因子key之過濾函數，規則同funFilterKeysNorm
  * @param {Integer} [opt.maxRoundsPerWorker] 輸入每個worker至多執行之輪數，僅workers大於0時有效；未給或非正整數為不限
- * @param {Object} [opt.oml] 輸入最佳化演算法設定(如Np、Ng、NContiguous)，原樣傳遞
+ * @param {Object} [opt.oml] 輸入最佳化演算法設定(如Np、Ng、NContiguous)，原樣傳遞；不得含thsCond、levelNumTradeBounds、intervalSec、timeBasis(口徑鍵，一律以opt.<鍵>給；其值於攤平時會覆寫轉傳之口徑而繞過口徑標記)，含者於建立求解器時throw `invalid opt.oml.<鍵>: must be given as opt.<鍵>`(先於任何建夾與寫檔)；亦不得含求解器保留之useRunStrategyBeforeSave、funRunStrategyCustomBeforeSave(覆寫者使存檔前不經官方重跑、不寫口徑標記)，含者throw `invalid opt.oml.<鍵>: must not be given (reserved by the solver)`
  * @param {Integer} [opt.maxStrategies] 輸入策略庫檔數達此即停
  * @param {Integer} [opt.maxRounds] 輸入總輪數上限
  * @param {Integer} [opt.maxTimeMs] 輸入總時長上限(毫秒)
@@ -90,12 +95,19 @@ let createSolver = (cfg, opt = {}) => {
         throw new Error(`opt含不認得之鍵[${unknown.join(', ')}], 可用: ${SOLVE_OPT_KEYS.join(', ')}`)
     }
 
+    //oml, 不得含口徑鍵(先於任何建夾、寫檔與輪次; runRound亦檢查, 見chkOml)
+    chkOml(opt)
+
     let workers = get(opt, 'workers', 0)
     if (!Number.isInteger(workers) || workers < 0) {
         workers = 0
     }
     let fdStrategies = get(opt, 'fdStrategies', '')
     fdStrategies = isestr(fdStrategies) ? path.resolve(fdStrategies) : cfg.fds.strategies
+
+    //basis, 工作根之口徑檢查(先於建夾與任何輪次; 不一致或無標記而策略庫已有他口徑之策略即throw); 須寫標記者由runRound於首個策略存檔之前以重讀 → 比對 → 寫入(求解選項此時已經w-trade-solve檢測, 無效者不留標記)
+    checkBasis(cfg, 'solve', { fdStrategies, optSolve: opt })
+
     ensureFolder(fdStrategies)
 
     let maxStrategies = isnum(opt.maxStrategies) ? opt.maxStrategies : 0
