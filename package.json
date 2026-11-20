@@ -1,6 +1,6 @@
 {
   "name": "w-trade-strategy",
-  "version": "1.0.25",
+  "version": "1.0.26",
   "main": "dist/w-trade-strategy.umd.js",
   "dependencies": {
     "w-data-csv": "^1.0.66",
@@ -8,7 +8,7 @@
     "w-data-trade": "^1.0.54",
     "w-dwdata-binance": "^1.0.64",
     "w-trade-backtest": "^1.1.47",
-    "w-trade-solve": "^2.0.47",
+    "w-trade-solve": "^2.0.48",
     "wsemi": "^1.9.70"
   },
   "devDependencies": {
