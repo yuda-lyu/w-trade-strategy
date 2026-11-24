@@ -292,7 +292,7 @@ waitMs為等候上限, 須大於staleMs(持鎖行程被強制結束而遺留之�
 <dl class="details">
     
     <dt class="tag-description">Description:</dt>
-    <dd class="tag-description"><ul class="dummy"><li><p>內建參數(因子)定義目錄(34個定義、136個輸出；price 20、index 14)，各定義格式見檔頭</p></li></ul></dd>
+    <dd class="tag-description"><ul class="dummy"><li><p>內建參數(因子)定義目錄(35個定義、140個輸出；price 21、index 14)，各定義格式見檔頭</p></li></ul></dd>
     
 
     
@@ -338,7 +338,7 @@ waitMs為等候上限, 須大於staleMs(持鎖行程被強制結束而遺留之�
 
 
 <div class="description usertext">
-    <p>內建參數(因子)定義目錄(34個定義、136個輸出；price 20、index 14)，各定義格式見檔頭</p>
+    <p>內建參數(因子)定義目錄(35個定義、140個輸出；price 21、index 14)，各定義格式見檔頭</p>
 </div>
 
 
@@ -4289,7 +4289,7 @@ console.log(r.meta.nBars, r.changed)</code></pre>
     
     <dt class="tag-description">Description:</dt>
     <dd class="tag-description"><ul class="dummy"><li><p>建立method名稱對應計算函數之映射(供w-data-trade dataConvert與dataCalibrate呼叫)</p>
-<p>內建method為w-data-trade之各calc(取值類orig、ma、maNorm、ema、emaNorm、vec、vecNorm與指標類kdj、macd、vortex、rsi、klr、atr、bbpb、obv、mfi、adx、donchian、supertrend、keltner、vwap、cvd、ats、ichimoku、candle)
+<p>內建method為w-data-trade之各calc(取值類orig、ma、maNorm、ema、emaNorm、vec、vecNorm與指標類kdj、macd、vortex、rsi、klr、atr、bbpb、obv、mfi、adx、donchian、supertrend、keltner、vwap、cvd、ats、ichimoku、candle、dirChange)；dirChange(方向改變法calcDirChange)之表為門檻百分比(期別段<code>${門檻}pct</code>)，intervalSec只檢核、不換算其標籤
 每次呼叫皆把intervalSec(每根K線之秒數)併入傳給calc之opt(w-data-trade &gt;= 1.0.50，根數為本)：各calc內建週期表之值為根數，不隨K線週期改變，期別標籤(即輸出key之period)= 根數 × intervalSec(4hr為14400即與內建標籤相同)；呼叫端給之optMethod(index側偏移參數等)原樣保留，其內之intervalSec可覆寫
 calcs可擴充或覆寫method，函數簽章(arr, keyIn, optMethod) =&gt; rrs，rrs為各期[{period, len, vs: [{time, ...keyOuts}]}]
 intervalSec依w-data-trade之chkIntervalSec檢核(60之正整數倍且至多31536000，數值或數字字串，轉為數值)，給了而無效即throw <code>invalid opt.intervalSec: must be a positive integer multiple of 60 up to 31536000</code>，null與未給取預設14400；已移除之舊選項barsPerDay視為未知鍵，不收</p></li></ul></dd>
@@ -4345,7 +4345,7 @@ intervalSec依w-data-trade之chkIntervalSec檢核(60之正整數倍且至多3153
 
     <h5 class="h5-examples">Example</h5>
     
-    <pre class="prettyprint"><code>let kp = buildKp({ myCalc: async (arr, keyIn, optMethod) => [{ period: '1bar', len: 1, vs: [] }] }, { intervalSec: 3600 })console.log(Object.keys(kp).length, typeof kp.rsi, typeof kp.myCalc)// => 26 function function</code></pre>
+    <pre class="prettyprint"><code>let kp = buildKp({ myCalc: async (arr, keyIn, optMethod) => [{ period: '1bar', len: 1, vs: [] }] }, { intervalSec: 3600 })console.log(Object.keys(kp).length, typeof kp.rsi, typeof kp.myCalc)// => 27 function function</code></pre>
 
 
 
@@ -5293,7 +5293,7 @@ console.log(p2.nBars, p2.byMode.long.length)</code></pre>
     
     <dt class="tag-description">Description:</dt>
     <dd class="tag-description"><ul class="dummy"><li><p>由K線序列計算指標參數(因子)序列並儲存至cfg.fds.param</p>
-<p>參數定義預設為內建目錄(抽自使用端既有管線之34個定義、136個輸出)，可由opt.defs整組替換或opt.extraDefs追加，定義格式見src/params/catalog.mjs
+<p>參數定義預設為內建目錄(抽自使用端既有管線之34個定義，另增方向改變法，共35個定義、140個輸出)，可由opt.defs整組替換或opt.extraDefs追加，定義格式見src/params/catalog.mjs
 各定義經三道過濾: cfg.useIndex為false時剔除cointpe為'index'者；數據缺少定義fields任一欄位者剔除(供僅有OHLC之股價等數據)；opt.only/opt.exclude依id取捨
 z-score正規化之nm(avg,std)依opt.nmPeriod(預設訓練期)由數據自算並凍結於cfg.fds.meta/params.json，之後重算參數時沿用凍結值(數據延長不致使既有策略之門檻失真)；opt.recalibrate為true時重算
 index側帶optMethod之指標預設以w-data-trade dataCalibrate對price側同名keyOut校正偏移參數(新幣種之index量級與ETH不同)，結果亦凍結於meta；opt.calibrateIndex為false時直接採定義值
@@ -5306,7 +5306,7 @@ opt.series可直接寫入外部自行計算之序列({key:[{time,param}]})，opt
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="params_buildParams.mjs.html">params/buildParams.mjs</a>, <a href="params_buildParams.mjs.html#line303">line 303</a>
+        <a href="params_buildParams.mjs.html">params/buildParams.mjs</a>, <a href="params_buildParams.mjs.html#line304">line 304</a>
     </li></ul></dd>
     
 
@@ -11868,7 +11868,7 @@ cfg.source非'binance'時throw(外部數據請直接呼叫buildOhlc)</p></li></u
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="params_buildParams.mjs.html">params/buildParams.mjs</a>, <a href="params_buildParams.mjs.html#line180">line 180</a>
+        <a href="params_buildParams.mjs.html">params/buildParams.mjs</a>, <a href="params_buildParams.mjs.html#line181">line 181</a>
     </li></ul></dd>
     
 
@@ -14382,7 +14382,7 @@ console.log(ott('2023-01-01T00:00:00').add(4, 'hour').format('YYYY-MM-DDTHH:mm:s
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="params_buildParams.mjs.html">params/buildParams.mjs</a>, <a href="params_buildParams.mjs.html#line236">line 236</a>
+        <a href="params_buildParams.mjs.html">params/buildParams.mjs</a>, <a href="params_buildParams.mjs.html#line237">line 237</a>
     </li></ul></dd>
     
 
@@ -18793,7 +18793,7 @@ releaseRecomputeLock(lock)</code></pre>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="params_buildParams.mjs.html">params/buildParams.mjs</a>, <a href="params_buildParams.mjs.html#line253">line 253</a>
+        <a href="params_buildParams.mjs.html">params/buildParams.mjs</a>, <a href="params_buildParams.mjs.html#line254">line 254</a>
     </li></ul></dd>
     
 
@@ -19438,7 +19438,7 @@ releaseRecomputeLock(lock)</code></pre>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="params_buildParams.mjs.html">params/buildParams.mjs</a>, <a href="params_buildParams.mjs.html#line213">line 213</a>
+        <a href="params_buildParams.mjs.html">params/buildParams.mjs</a>, <a href="params_buildParams.mjs.html#line214">line 214</a>
     </li></ul></dd>
     
 
@@ -21915,7 +21915,7 @@ releaseRecomputeLock(lock)</code></pre>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="params_buildParams.mjs.html">params/buildParams.mjs</a>, <a href="params_buildParams.mjs.html#line99">line 99</a>
+        <a href="params_buildParams.mjs.html">params/buildParams.mjs</a>, <a href="params_buildParams.mjs.html#line100">line 100</a>
     </li></ul></dd>
     
 
@@ -22428,7 +22428,7 @@ writeJson('./data/meta/x.json', { a: 1 })</code></pre>
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Tue Nov 24 2026 13:15:45 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Tue Nov 24 2026 16:31:54 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
 </footer>
 
 <script>prettyPrint();</script>
