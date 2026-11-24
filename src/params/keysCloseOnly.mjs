@@ -7,7 +7,7 @@ import includes from 'lodash-es/includes.js'
 //  key命名: `${cointpe}_${keyKind}_${keyIn}_${keyOut}_${method}_${period}`(w-data-trade dataConvert), 非6段者視為未知一律不放行
 //  判定依據(逐檔核對w-data-trade各calc實際存取之欄位):
 //    ① 取值類orig/ma/maNorm/ema/emaNorm/vec/vecNorm: 來源欄位由keyIn決定 → 僅keyIn==='Close'者放行
-//    ② 指標類僅存取Close者: bbpb、macd、rsi
+//    ② 指標類僅存取Close者: bbpb、macd、rsi、dirChange(方向改變法calcDirChange, 只讀Close)
 //    ③ 其餘指標皆另取High/Low/Open或成交量欄位, 一律不放行
 //  成交量類(_vbs_)過濾後為空, 故配合使用之comps第3段須恆為0(見compsCloseOnly)
 
@@ -16,7 +16,7 @@ import includes from 'lodash-es/includes.js'
 let METHODS_BY_KEYIN = ['orig', 'ma', 'maNorm', 'ema', 'emaNorm', 'vec', 'vecNorm']
 
 //METHODS_CLOSE_ONLY, 內部僅存取Close欄位之指標類method
-let METHODS_CLOSE_ONLY = ['bbpb', 'macd', 'rsi']
+let METHODS_CLOSE_ONLY = ['bbpb', 'macd', 'rsi', 'dirChange']
 
 
 /**

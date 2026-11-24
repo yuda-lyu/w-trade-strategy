@@ -140,6 +140,18 @@ describe('solve', function() {
         assert.deepStrictEqual(allowedComps({ norm: 9, index: 1, volumn: 0 }, COMPS_ALL), ['2,0,0', '3,0,0', '4,0,0', '2,1,0', '3,1,0', '4,1,0'])
     })
 
+    it('方向改變法(method dirChange)之鍵: close-only 放行(calcDirChange 只讀 Close; 同 rsi 不看 keyIn); 分類為一般類', function() {
+        //規格: keysCloseOnly 之 METHODS_CLOSE_ONLY 含 dirChange; classifyKeys 只依前綴 index_ 與 _vbs_
+        let ks = ['price_ohlc_none_dirState_dirChange_4pct', 'price_ohlc_none_dirRetrace_dirChange_6pct', 'price_ohlc_none_dirRun_dirChange_8pct', 'price_ohlc_none_dirAge_dirChange_10pct']
+        for (let k of ks) {
+            assert.strictEqual(isKeyCloseOnly(k), true, k)
+        }
+        assert.strictEqual(isKeyCloseOnly('price_ohlc_Open_dirState_dirChange_4pct'), true) //指標類不看keyIn(同rsi)
+        assert.strictEqual(isKeyCloseOnly('price_ohlc_none_dcPctB_donchian_1day'), false) //donchian另取High/Low
+        assert.deepStrictEqual(filterKeysCloseOnly([...ks, 'price_ohlc_none_ADX_adx_1day']), ks)
+        assert.deepStrictEqual(classifyKeys(ks), { keysNorm: ks, keysIndex: [], keysVolumn: [] })
+    })
+
     it('prepareSolve: 分類數、組成過濾、closeOnly; 無train即throw', async function() {
         let p = await prepareSolve(pl.cfg, {})
         assert.ok(p.counts.norm > 0 && p.counts.index > 0 && p.counts.volumn > 0, JSON.stringify(p.counts))

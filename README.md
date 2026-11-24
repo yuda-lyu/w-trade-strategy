@@ -68,7 +68,7 @@ let test = async () => {
     //1. 數據 → 參數 → 先觸快取(source 為 'binance' 時先 await pl.fetchData(); 亦可一次 await pl.prepare())
     let ro = await pl.buildOhlc({ dropIncompleteLastBar: false })
     ms.push(`buildOhlc: ${ro.nPrice} 根 ${ro.timeFirst} ~ ${ro.timeLast}`)
-    let rp = await pl.buildParams({ only: ['price_ohlc_close', 'price_ohlc_rsi', 'price_ohlc_macd', 'index_ohlc_close'] }) //未給 only 即內建 34 個定義全算
+    let rp = await pl.buildParams({ only: ['price_ohlc_close', 'price_ohlc_rsi', 'price_ohlc_macd', 'index_ohlc_close'] }) //未給 only 即內建 35 個定義全算
     ms.push(`buildParams: ${rp.nKeys} 個因子序列(nm 由訓練期自算並凍結於 meta), 剔除 ${rp.dropped.length} 個定義`)
     let rc = await pl.buildCache({ tps: [5, 7] })
     ms.push(`buildCache: ${rc.meta.nBars} 根 × ${rc.want.modes.length} 方向 × ${rc.want.tps.length} 組止盈止損`)
@@ -111,7 +111,7 @@ test()
         console.log(err)
     })
 // => buildOhlc: 600 根 2023-01-01T00:00:00 ~ 2023-04-10T20:00:00
-// => buildParams: 100 個因子序列(nm 由訓練期自算並凍結於 meta), 剔除 30 個定義
+// => buildParams: 100 個因子序列(nm 由訓練期自算並凍結於 meta), 剔除 31 個定義
 // => buildCache: 600 根 × 2 方向 × 2 組止盈止損
 // => sweepSingle: 8 個因子 → 16 隻單因子策略
 // => sweepPairs: 16 個配對工作 → 47 隻雙因子策略
@@ -130,7 +130,7 @@ test()
 |---|---|---|
 | 抓數據 | `fetchData` | `raw/{name}/{price,index}/{rawKeyOf(cfg)}/*.csv`(直接下載者為 `{interval}`;依時區合併者見〈數據〉) |
 | 整理 K 線 | `buildOhlc` | `ohlc/{name}_price_{interval}.json`、`ohlc/{name}_index_{interval}.json` |
-| 算參數(因子) | `buildParams` | `param/*.json`(每因子一檔;內建 34 個定義、136 個輸出) |
+| 算參數(因子) | `buildParams` | `param/*.json`(每因子一檔;內建 35 個定義、140 個輸出) |
 | 先觸快取 | `buildCache` | `cache/cacheKLinesTpSl.json` |
 | 單因子普測 | `sweepSingle` | `strategiesP1/*.json` |
 | 雙因子普測(對已求出之單因子策略配對) | `sweepPairs` | `strategiesP2/*.json` |
@@ -198,7 +198,7 @@ cfg 之鍵只認 `CFG_KEYS`,打錯即拋錯並列可用鍵;已正規化之 cfg �
 
 `buildParams(opt)` 以 `w-data-trade` 之 `dataConvert` 計算,輸出檔名 `${cointpe}_${keyKind}_${keyIn}_${keyOut}_${method}_${period}.json`(例 `price_ohlc_none_RSI_rsi_1day`),內容 `[{ time, param }]`,`param` 為 z-score.
 
-- **內建目錄**(`src/params/catalog.mjs`):34 個定義(price 20、index 14,共 136 個輸出),不含標的專屬之 z-score 常數(nm 由 `buildParams` 自算;index 側 `optMethod` 為校正起點,見下).`opt.only`／`opt.exclude` 依 `id` 取捨;`opt.defs` 整組替換;`opt.extraDefs` 追加.定義格式:
+- **內建目錄**(`src/params/catalog.mjs`):35 個定義(price 21、index 14,共 140 個輸出;其中 34 個抽自使用端既有管線,另增方向改變法 `price_ohlc_dirchange`,見下),不含標的專屬之 z-score 常數(nm 由 `buildParams` 自算;index 側 `optMethod` 為校正起點,見下).`opt.only`／`opt.exclude` 依 `id` 取捨;`opt.defs` 整組替換;`opt.extraDefs` 追加.定義格式:
 
 ```js
 {
@@ -224,10 +224,16 @@ cfg 之鍵只認 `CFG_KEYS`,打錯即拋錯並列可用鍵;已正規化之 cfg �
   - 標籤規則:時間跨度為整日數者寫 `Nday`,否則整小時數者寫 `Nhr`,否則 `Nm`;不同根數於同一週期下標籤必不同.由參數鍵名之末段與 `intervalSec` 查根數用 `w-data-trade` 之 `periodInfo`(例:`periodInfo('3day', { intervalSec: 86400 })` 為 3 根).
   - `intervalSec` 由 `buildKp` 於每次呼叫注入 opt(直接呼叫 `buildKp` 時,呼叫端給之 `optMethod` 內之 `intervalSec` 可覆寫);`buildParams` 內一律以 `cfg.intervalSec` 為準:交給 `dataConvert` 之各 method 之 `optMethod.intervalSec` 皆為 `cfg.intervalSec`(含不讀選項之 `orig`;`w-data-trade` 要求同一次呼叫之各 method 同一每根秒數),交給 `dataCalibrate` 之 `optMethodInit`／`optMethodRef` 去除 `intervalSec` 並明列搜尋參數 `opt.params`(只校正偏移參數,不把每根時長當搜尋參數),故凍結於 `meta.optMethod` 者不含 `intervalSec`;無效值於 `buildKp`／`normalizeCfg` 即拋錯,不傳入 `w-data-trade`.
   - **暖機**:根數為本,故最長期別於任何週期下皆約需 360 根才有第 1 筆值(依 `w-data-trade` 文件:`adx` 之 `len` 180 自索引 359 起,`ichimoku` 之 `senkouB` 180 自 269,`macd` 倍率 6 自 208);日 K 線即約一年數據,**數據起點(`timeBegin`)宜早於訓練起點至少 360 根**(日線即約 360 日;本套件不強制、不自動改;`timeBegin` 綁工作根,須於建庫前決定);根數不足之期(例:日 K 線僅 100 根時之 `180day` 均線)於 `w-data-trade` 回傳空 `vs`,`buildParams` 仍寫出該期之空序列檔(`[]`)並列入 `keys`(數據過短時 4hr 亦同).
-  - 本套件之程式不依因子名稱之期別段做任何判斷(close-only 過濾與三類分類只讀鍵名之第 3、5 段與前綴);由期別標籤反推根數請用 `w-data-trade` 之 `periodInfo`.
+  - 本套件之程式不依因子名稱之期別段做任何判斷(close-only 過濾與三類分類只讀鍵名之第 3、5 段與前綴);由期別標籤反推根數請用 `w-data-trade` 之 `periodInfo`(方向改變法之門檻標籤 `${門檻}pct` 不是時間跨度,`periodInfo`〔`w-data-trade` ≥ 1.0.58〕對之回 `{ bars: 0, spanSec: 0 }`〔同 `none`,無根數視窗〕,見下條).
+- **方向改變法(directional change;`price_ohlc_dirchange`,method `dirChange`)**:以 `w-data-trade`(≥ 1.0.58)之 `calcDirChange` 計算,只用收盤、因果(各根之值只用該根與其前之收盤):自至今之極值反向達門檻(對數報酬 `ln(1 + 門檻% ÷ 100)`)即確認換向.4 個輸出 × 4 個門檻(4、6、8、10%)= 16 個鍵,例 `price_ohlc_none_dirState_dirChange_6pct`:`dirState`(已確認之方向 ±1)、`dirRetrace`(自極值逆向之回撤占門檻之比例,`[0, 1)`)、`dirRun`(自轉折點順方向之對數報酬占門檻之比例,確認當根 ≥ 1)、`dirAge`(自確認起之根數).
+  - **只列價格側**:溢價指數之值近 0、可為負,取對數無意義.
+  - **期別段為門檻**(`4pct`…`10pct`),不是根數:任何 K 線週期下鍵名相同,`intervalSec` 只交 `w-data-trade` 檢核,不換算.確認前無值(序列自第 1 次確認之根起;未曾確認之門檻為空序列).
+  - **nm 與既有工作根**:同其他定義(各門檻共用一組 nm;凍結於 `meta/params.json`).已凍結 nm 之既有工作根升版後重跑 `buildParams`(**不須亦不可 `opt.recalibrate`**)時,只對此定義之 4 個 nm 以凍結之 nm 期間自算並追加,既有之序列檔與 nm 逐位不變,不拋錯、不略過;不想要此類因子者以 `opt.exclude: ['price_ohlc_dirchange']` 排除(給 `opt.only` 而未選之者,回傳與 `meta/params.json` 之 `dropped` 多列此定義).既有之策略檔不受影響(不重算);其後之普測與求解會把 16 個鍵納入一般類之抽樣母體.
+  - **`dirState` 與門檻格點**:z 分數化後只有兩個值 `z− < 0 < z+`(nm 期間內兩種方向皆出現時),求解之預設門檻格點(−2～2、步長 0.1)中凡落於 `[z−, z+)` 者以 `>` 皆分出同一組(方向為漲之根;`<` 對稱),0 恆在其中;其餘格點為恆真或恆假之條件.不須特別處理,只是此鍵之有效門檻較少.
+  - close-only 過濾放行(`calcDirChange` 只讀 Close).
 - **自訂計算**:`opt.calcs = { myMethod: async (arr, keyIn, optMethod) => [{ period, len, vs: [{ time, ...keyOuts }] }] }` 搭配 `extraDefs` 之 `method: 'myMethod'`.
 - **外部序列**:`opt.series = { key: [{ time, param }] | async fn }` 直接寫入 `param/`(key 不可含路徑分隔符).
-- **Close-only 過濾**:`filterKeysCloseOnly(keys)`／`isKeyCloseOnly(key)` 只留由 Close 推導之因子(ma 系 + rsi／macd／bbpb);求解端以 `closeOnly: true` 啟用.
+- **Close-only 過濾**:`filterKeysCloseOnly(keys)`／`isKeyCloseOnly(key)` 只留由 Close 推導之因子(ma 系 + rsi／macd／bbpb／dirChange);求解端以 `closeOnly: true` 啟用.
 
 ## 5. 先觸快取與因子普測
 
@@ -292,12 +298,12 @@ console.log(v.counts, d.cross.nDown, d.cross.nThFallback, w.ok, w.namesSame)
 |---|---|
 | `unit-cfg` | 設定正規化:必填、週期與 `intervalSec`(內建 13 種週期之值皆通過 `w-data-trade` 之 `chkIntervalSec`;數字字串轉為數值;給了而無效即拋、訊息不含輸入值;內建週期另給不同值即拋)、`timeBasis`(有給才出現、無效即拋、`barTimeOf`)、預設值、`fds` 覆寫、外部數據與 `useIndex`、`train` 檢核、不認得之鍵、已移除之 `barsPerDay` 不產出亦不收、既有六鍵與新週期鍵同一規則(不留 `LEGACY_INTERVALS`、`aggregateFromOf`;未給 `aggregateFrom` 不出現於回傳)、`serializableCfg` |
 | `unit-buildOhlc` | 外部陣列／函數來源、`timeBegin` 過濾、未收棒剔除、index 截齊、欄位檢核、meta 之 `changed`、非 4hr 之時刻格線核對(界線不在格線、間距非整數倍、重複時刻、溢價指數錯開皆拒且不寫檔;4hr 不核對)、外部數據之期間內之洞只記數量(4hr 不加欄)、溢價指數晚開始或較早結束之 `gaps.edges` 與提示、`gapsOf`、`edgesOf`、`checkBarGrid`、`1week` 之預設 `timeBegin` 不在週界線即拒 |
-| `unit-buildParams` | 內建目錄規模、key 命名、nm 凍結／沿用／重算、`useIndex` 與缺欄位之剔除、index 校正之凍結、`extraDefs`＋`calcs`、`series`、自帶 nm、4hr／1hr／1day K 線之期別標籤與根數(手寫期望值)、`buildKp` 之 `intervalSec`(預設、覆寫、數字字串、無效即拋、舊選項 `barsPerDay` 不收;預設與直接呼叫 `w-data-trade` 逐位相同;1hr 之 index 校正與寫出皆併入)、`dataCalibrate` 不把 `intervalSec` 當搜尋參數(凍結值不含之)、`dataConvert` 之各 method 同一 `intervalSec` |
+| `unit-buildParams` | 內建目錄規模、key 命名、nm 凍結／沿用／重算、`useIndex` 與缺欄位之剔除、index 校正之凍結、`extraDefs`＋`calcs`、`series`、自帶 nm、4hr／1hr／1day K 線之期別標籤與根數(手寫期望值)、`buildKp` 之 `intervalSec`(預設、覆寫、數字字串、無效即拋、舊選項 `barsPerDay` 不收;預設與直接呼叫 `w-data-trade` 逐位相同;1hr 之 index 校正與寫出皆併入)、`dataCalibrate` 不把 `intervalSec` 當搜尋參數(凍結值不含之)、`dataConvert` 之各 method 同一 `intervalSec`、方向改變法(目錄之 id 小寫與字母序位置、只在價格側、16 鍵與值、門檻標籤不隨週期、`buildKp` 之 `dirChange` 接線、`dirState` 之 z 分數與門檻格點、既有工作根加入此定義時既有序列與 nm 逐位不變) |
 | `unit-sweep` | `buildCache`(跳過／強制)、`sweepCfgOf`(含策略 `settings` 數值欄與 `tpsls` 之檢核、`barTime`)、`sweepSingle`(格式、每因子每方向至多一檔、`filterKeys`、`cleanFdOut`)、`sweepPairs`(配對、`opr`、去重、`eqYrMin`) |
-| `unit-interval` | 每根時長與時間口徑之接線(日線合成數據;以真實回測套件之輸出驗證,不用替身):`timeBasis` 轉傳至普測兩核心、求解(in-process、`workers: 1`、`engine: 'full'`)、加速核心、策略庫重算之每一處(`'span'` 之回測天數 n、未給為 n − 1);求解新選項 `thsCond`／`levelNumTradeBounds` 之轉傳與重算之級距;無效之止盈止損候選錯誤上拋(含有效與無效混雜)、`thsTp`／`thsSl` 給了即轉傳(非陣列、空陣列亦由求解套件拋錯;`solveFwdOf`);`oml` 不得覆寫口徑鍵(`thsCond`、`levelNumTradeBounds`、`intervalSec`、`timeBasis`)與保留鍵(`useRunStrategyBeforeSave`、`funRunStrategyCustomBeforeSave`;四種入口:`createSolver`、`solve`、`workers: 1`、直接呼叫 `runRound`;先於建夾與寫檔);根數為本之端到端(4hr 與 1day 同一串 K 線:874 鍵、標籤對應、逐值相同) |
+| `unit-interval` | 每根時長與時間口徑之接線(日線合成數據;以真實回測套件之輸出驗證,不用替身):`timeBasis` 轉傳至普測兩核心、求解(in-process、`workers: 1`、`engine: 'full'`)、加速核心、策略庫重算之每一處(`'span'` 之回測天數 n、未給為 n − 1);求解新選項 `thsCond`／`levelNumTradeBounds` 之轉傳與重算之級距;無效之止盈止損候選錯誤上拋(含有效與無效混雜)、`thsTp`／`thsSl` 給了即轉傳(非陣列、空陣列亦由求解套件拋錯;`solveFwdOf`);`oml` 不得覆寫口徑鍵(`thsCond`、`levelNumTradeBounds`、`intervalSec`、`timeBasis`)與保留鍵(`useRunStrategyBeforeSave`、`funRunStrategyCustomBeforeSave`;四種入口:`createSolver`、`solve`、`workers: 1`、直接呼叫 `runRound`;先於建夾與寫檔);根數為本之端到端(4hr 與 1day 同一串 K 線:890 鍵〔依根數之期別 874 + 方向改變法之門檻鍵 16〕、標籤對應〔門檻標籤不變〕、逐值相同) |
 | `api-fetchBinance` | 與 `w-dwdata-binance` 之對接(本機假交易所,作業系統配發之埠):台北日線＋`aggregateFrom: '4hr'` 由 4h 合併、價格與溢價指數同一合併夾(`rawKeyOf`)、`meta/aggregate.json`(取得方式與未輸出之目標根)、`buildOhlc` 讀合併夾且各欄等於 6 根之合併;交易所來源之期間內之洞(預設放行並記錄、以 `console.warn` 提示一則〔內容只含序列名與洞數〕,明給 `allowGaps: false` 於寫檔前拋且不寫檔,只有 `false` 為嚴格;無洞不提示;尾端之未收棒不算;4hr 不判洞、不提示);4hr 直接下載之資料夾不變、不寫該檔;未給 `aggregateFrom` 時一律不傳(同下載套件之預設 `'auto'`,既有六鍵與新週期鍵同一規則):台北、UTC 之 4hr 直接下載、資料夾為 `4hr`、K 線為假交易所之原樣 4h 根(同 1.0.22 以前),東京、加爾各答之 4hr 改走合併(1hr、30m 合併為當地界線起訖之 4hr,合併夾 = `rawKeyOf`,`buildOhlc` 讀之,各根等於基底各根之合併),紐約之 4hr 於 `normalizeCfg` 即拋;明給 `aggregateFrom: 'none'` 者於東京、加爾各答、紐約皆直接下載原生 4h;幣安來源之時區無效者於 `normalizeCfg` 即拋;須合併而時區有日光節約、`aggregateFrom` 無效、非幣安來源給 `aggregateFrom` 皆於 `normalizeCfg` 即拋(下載套件之錯誤原樣上拋) |
 | `unit-basis` | 工作根之口徑標記 `meta/basis.json`:4hr 預設不建檔(亦無互斥檔)、日線新工作根寫標記(含 `utcOffsets`、`aggregateBase`、`dayStart`)與首個策略存檔之前補記求解選項、口徑不一即拋(求解選項、`timeBasis`〔含 `sweepPairs`〕、每根秒數、時區、合併之基底、`dayStart`)且不動既有檔(`buildOhlc` 於寫 K 線檔前即擋)、無標記之舊語意工作根即拋、4hr 既有庫改給新選項、無效之求解選項不留標記、首輪中途中止後同設定再跑不被拒、兩個求解器交錯不混存、標記無法解析即拋(含 4hr 預設口徑)、`periodBasis` 不支援即拋、`checkBasis`／`commitBasis`(重讀 → 比對 → 寫入)之判定、互斥檔(同口徑並行之等候、穩態不取互斥檔〔遺留之新互斥檔下 2 個 worker 之求解照常〕、等候上限大於殘留判定、持續更新者逾時拋、無法移除之殘留以固定訊息拋)、互斥檔之建立與標記之寫入／讀取失敗以固定訊息拋(只帶錯誤碼、不外漏原生訊息與路徑;讀取遇暫時性之 `EPERM`、`EBUSY` 先重試)、`src/util/basis.mjs` 全部訊息之 V19／V20 靜態掃描、`buildOhlc` 於無標記之舊工作根即拒且 K 線檔不變、求解口徑不同之訊息與復原途徑 |
-| `unit-solve` | close-only 規則與 `comps` 解析、`prepareSolve` 之分類與過濾、in-process 事件與策略檔格式、各停止條件、`mode` 與 `timeEndByMode`、`workers` 之停止與收尾、函數選項與不認得之鍵、`status`、資源閘 `gate`(呼叫序列與次數、閘內延遲推後該輪、閘拋錯、起跑前停止條件、閘等待期間停止之不懸置) |
+| `unit-solve` | close-only 規則與 `comps` 解析(含方向改變法之鍵)、`prepareSolve` 之分類與過濾、in-process 事件與策略檔格式、各停止條件、`mode` 與 `timeEndByMode`、`workers` 之停止與收尾、函數選項與不認得之鍵、`status`、資源閘 `gate`(呼叫序列與次數、閘內延遲推後該輪、閘拋錯、起跑前停止條件、閘等待期間停止之不懸置) |
 | `unit-baseUnit` | 基礎單位 `settings.unit`:`normalizeUnit` 與 `normalizeCfg` 之檢核與補齊(`null` 補預設、數字字串轉為數值且轉換前後 `key` 相同、非一般物件拒)、`sweepCfgOf`、`sweepSingle`／`sweepPairs`／`solve`(in-process、`workers: 1`)之 `unit` 落地與摘要、加速核心依 `unit` 評估(與 `runStrategy` 之對應欄相同)、單一策略不設持倉門檻(研究用本金小於最大持倉名義時普測之挑選與求解之入庫不變、回傳與事件之形狀不變)、未給 `unit` 時不變 |
 | `unit-recompute` | 策略庫重算:`verify`／`dry`／`write` 三模式、忠實重放與其鑑別(竄改摘要與 `fitness`、無 `solve`、壞檔)、新口徑之 `settings`／`summary`／`fitness` 與其餘欄不變、檔名與檔數不變、跨門檻清單、最大持倉名義超過 `uIni` 者照常重算並只列統計(隻數、最大者、單位數、清單)、續跑與 `already`、輸出檔被刪或竄改後續跑重做、journal 末行半截、殘留暫存檔、鎖檔(原子建立、使用中拒、內容無法讀出而很新者視為使用中、殘留接手時之保護檔與鎖檔全程存在、鎖檔無法讀取、接手之競態、多個子行程同時建立與同時接手時恰一個取得)、檔內 `unit` 之數字字串視為同一口徑(`already`)與記錄欄不同者重算、來源檔已變者續跑重做、縮小選取範圍之續跑、例外中止之部分報告、`noThreshold`／`nThFallback`、`nameMismatch`、寫出之安全(同夾、大小寫別名〔Windows〕、目錄連結別名、互為上下層、`fdReport` 位置、`fdOut` 非空、建立 `fdOut` 後被換成連結〔先查後做〕、實體路徑取不到皆拒,且每案〔含續跑〕原策略庫逐位不變)、別名判定之兩法各自之單元測試(正規路徑、目錄本體、識別為 0、實體路徑拋錯)、選項檢核(含數字字串之 `uIni`／`unit`／`thEqYr`／`takeLimit`／`limit` 轉為數值、`invalid opt.<名稱>: must be …` 訊息不含輸入值、檔內 `settings.uIni` 之數字字串〔同值為 `already`、不同值依目標重算、無效值為 `error` 且不中斷整批〕) |
 | `unit-package` | 套件結構與發布面:package.json、依賴對帳與按需引入、`toolg/gDistRollup.mjs` 之 external 寫法、npm 打包清單、`g.mjs` 離線實跑與 README 同步、JSDoc 覆蓋與範例實跑、發布內容不含通用機敏樣式(磁碟機路徑、IPv4、權杖) |

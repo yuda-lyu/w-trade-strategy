@@ -19,7 +19,7 @@ import { buildFdTmp, cfgOf } from './tools/synthKit.mjs'
 //  時間口徑: cfg.timeBasis('open'/'span')與intervalSec一致地轉傳至每一處呼叫回測或求解者 —— 普測兩核心(策略settings與calcOrdersSummarySimple之opt)、求解(estimFinder之opt ⇒ 策略settings; 加速核心與存檔前官方重跑皆讀strategy.settings)、
 //    策略庫重算(目標口徑); 未給 ≡ 現行; 接縫不用替身(以真實回測套件之輸出驗證)
 //  求解新選項: thsCond、levelNumTradeBounds放行並轉傳; 重算以檔內之級距設定組檔名
-//  根數為本: 同一串K線以4hr與1day計, 鍵數相同(內建目錄全算874)、期別標籤依「根數 × 每根時長」對應、各序列值逐值相同
+//  根數為本: 同一串K線以4hr與1day計, 鍵數相同(內建目錄全算890 = 依根數之期別874 + 方向改變法之門檻鍵16)、期別標籤依「根數 × 每根時長」對應(方向改變法之門檻標籤`${門檻}pct`不隨週期改變)、各序列值逐值相同
 //  驗證之鑑別: 日線之訓練窗為首根至末根(n根), 'open'之回測天數 = n − 1, 'span' = n(計至末根收盤)
 
 
@@ -290,7 +290,7 @@ describe('interval(每根時長、時間口徑與求解新選項之接線)', fun
         assert.deepStrictEqual(JSON.parse(fs.readFileSync(fpBasis, 'utf8')).solve.thsCond, [0.5, 1, 1.5])
     })
 
-    it('根數為本(端到端): 同一串K線以4hr與1day計, 內建目錄全算之鍵數同為874、標籤依根數 × 每根時長一一對應、各序列逐值相同', async function() {
+    it('根數為本(端到端): 同一串K線以4hr與1day計, 內建目錄全算之鍵數同為890(874 + 方向改變法16)、標籤依根數 × 每根時長一一對應(門檻標籤不變)、各序列逐值相同', async function() {
         this.timeout(180000)
         let mk = async (name, interval, stepMs) => {
             let { cfg } = cfgOf(fdTmp, 400, { root: path.resolve(fdTmp, name), interval, stepMs })
@@ -301,15 +301,24 @@ describe('interval(每根時長、時間口徑與求解新選項之接線)', fun
         }
         let a = await mk('e2e4', '4hr', 4 * 3600 * 1000)
         let b = await mk('e2e1d', '1day', DAY)
-        assert.strictEqual(a.r.nKeys, 874)
-        assert.strictEqual(b.r.nKeys, 874)
+        assert.strictEqual(a.r.nKeys, 890)
+        assert.strictEqual(b.r.nKeys, 890)
         let keysB = new Set(b.r.keys)
+        let reDir = /^price_ohlc_none_(dirState|dirRetrace|dirRun|dirAge)_dirChange_(4|6|8|10)pct$/
+        assert.strictEqual(a.r.keys.filter((k) => reDir.test(k)).length, 16)
         let nCmp = 0
+        let nDir = 0
         for (let k4 of a.r.keys) {
             let ps = k4.split('_')
             let label4 = ps[ps.length - 1]
-            let bars = periodInfo(label4, { intervalSec: 14400 }).bars
-            let label1 = bars === 0 ? 'none' : spanLabelOf(bars * 86400)
+            if (reDir.test(k4)) {
+                //方向改變法: 門檻標籤不是時間跨度, w-data-trade(>= 1.0.58)之periodInfo回無根數視窗{ bars: 0, spanSec: 0 }(同'none', 不隨intervalSec改變); 其鍵於1day為同名, 故不可套用下方「bars為0即映為'none'」之換算(須保持原標籤)
+                assert.deepStrictEqual(periodInfo(label4, { intervalSec: 14400 }), { period: label4, bars: 0, spanSec: 0 })
+                assert.deepStrictEqual(periodInfo(label4, { intervalSec: 86400 }), { period: label4, bars: 0, spanSec: 0 })
+                nDir++
+            }
+            let bars = reDir.test(k4) ? null : periodInfo(label4, { intervalSec: 14400 }).bars
+            let label1 = bars === null ? label4 : (bars === 0 ? 'none' : spanLabelOf(bars * 86400))
             let k1 = [...ps.slice(0, -1), label1].join('_')
             assert.ok(keysB.has(k1), `${k4} → ${k1}`)
             let v4 = JSON.parse(fs.readFileSync(path.resolve(a.pl.cfg.fds.param, `${k4}.json`), 'utf8'))
@@ -318,7 +327,8 @@ describe('interval(每根時長、時間口徑與求解新選項之接線)', fun
             assert.deepStrictEqual(v1.map((x) => x.param), v4.map((x) => x.param), k4)
             nCmp++
         }
-        assert.strictEqual(nCmp, 874)
+        assert.strictEqual(nCmp, 890)
+        assert.strictEqual(nDir, 16)
         assert.ok(b.r.keys.some((k) => k.endsWith('_180day')))
     })
 

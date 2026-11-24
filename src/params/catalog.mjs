@@ -1,4 +1,4 @@
-//內建參數(因子)目錄: 由使用端既有管線之 34 個參數定義抽提, 去除幣種專屬之 nm(avg/std, 改由 buildParams 依指定期間自算並凍結於 meta)
+//內建參數(因子)目錄: 由使用端既有管線之 34 個參數定義抽提(另增方向改變法 price_ohlc_dirchange, 共 35 個), 去除幣種專屬之 nm(avg/std, 改由 buildParams 依指定期間自算並凍結於 meta)
 //  各定義: { id, cointpe('price'|'index'), keyKind('ohlc'|'vbs'), fields(計算實際存取之 K 線欄位; 數據缺任一欄即整個定義跳過), keysIn(取值類之來源欄位; 空陣列代表 'none'),
 //           funAddKeysIn(逐筆擴增欄位之函數, 僅 vbs 用), methods: [{ method, optMethod(index 側之偏移參數, 為校正起點; null=無), deals: [{ keyIn?, keyOut }] }] }
 //  key 命名由 w-data-trade dataConvert 決定: `${cointpe}_${keyKind}_${keyIn||'none'}_${keyOut}_${method}_${period}`
@@ -37,7 +37,7 @@ let funAddKeysInVbs = (v) => {
 
 
 /**
- * 內建參數(因子)定義目錄(34個定義、136個輸出；price 20、index 14)，各定義格式見檔頭
+ * 內建參數(因子)定義目錄(35個定義、140個輸出；price 21、index 14)，各定義格式見檔頭
  *
  * @type {Array}
  */
@@ -436,6 +436,28 @@ let CATALOG = [
                 method: 'cvd',
                 optMethod: null,
                 deals: [{ keyOut: 'cvd' }, { keyOut: 'cvdSlope' }],
+            },
+        ],
+    },
+    {
+        //方向改變法(directional change): 只用收盤之因果估計(w-data-trade calcDirChange); 門檻表為價格之比例(4、6、8、10%), 期別段為`${門檻}pct`, 不隨K線週期改變
+        //  只列價格側: 溢價指數之值近0、取對數無意義
+        id: 'price_ohlc_dirchange',
+        cointpe: 'price',
+        keyKind: 'ohlc',
+        fields: ['Close'],
+        keysIn: [],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'dirChange',
+                optMethod: null,
+                deals: [
+                    { keyOut: 'dirState' },
+                    { keyOut: 'dirRetrace' },
+                    { keyOut: 'dirRun' },
+                    { keyOut: 'dirAge' },
+                ],
             },
         ],
     },

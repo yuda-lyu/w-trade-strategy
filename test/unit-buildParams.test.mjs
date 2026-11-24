@@ -10,7 +10,8 @@ import { buildFdTmp, cfgOf, genArrPrice } from './tools/synthKit.mjs'
 
 
 //規格來源: src/params/buildParams.mjs、src/params/catalog.mjs
-//  內建目錄34個定義(price 20、index 14), 輸出key命名`${cointpe}_${keyKind}_${keyIn}_${keyOut}_${method}_${period}`
+//  內建目錄35個定義(price 21、index 14; 含方向改變法price_ohlc_dirchange), 輸出key命名`${cointpe}_${keyKind}_${keyIn}_${keyOut}_${method}_${period}`
+//  方向改變法(method dirChange, w-data-trade calcDirChange): 只在價格側; 4個輸出 × 4個門檻(4、6、8、10%) = 16鍵; 期別段為門檻標籤`${門檻}pct`, 不隨K線週期改變; nm同其他定義(凍結, 新定義於既有工作根以凍結之nm期間自算, 不須recalibrate)
 //  K線週期(根數為本; w-data-trade >= 1.0.50): 各calc內建週期表之值為根數, 標籤以每根4hr寫定(label = 根數 × 4hr); 給opt.intervalSec(每根秒數)時根數不變、標籤改為 根數 × 每根秒數
 //    maNorm等之根數 6、12、24、42、90、180: 4hr為 1day、2day、4day、7day、15day、30day; 1hr為 6hr、12hr、1day、42hr、90hr、180hr; 1day為 6day、12day、24day、42day、90day、180day
 //    rsi之根數 3、4、5、6、12、24、42: 4hr為 12hr、16hr、20hr、1day、2day、4day、7day; 1hr為 3hr、4hr、5hr、6hr、12hr、1day、42hr; 1day為 3day、4day、5day、6day、12day、24day、42day
@@ -32,9 +33,9 @@ describe('buildParams', function() {
         fs.rmSync(fdTmp, { recursive: true, force: true })
     })
 
-    it('內建目錄: price 20個、index 14個定義, 136個輸出', function() {
-        assert.strictEqual(CATALOG.length, 34)
-        assert.strictEqual(CATALOG.filter((d) => d.cointpe === 'price').length, 20)
+    it('內建目錄: price 21個、index 14個定義, 140個輸出', function() {
+        assert.strictEqual(CATALOG.length, 35)
+        assert.strictEqual(CATALOG.filter((d) => d.cointpe === 'price').length, 21)
         assert.strictEqual(CATALOG.filter((d) => d.cointpe === 'index').length, 14)
         let nDeals = 0
         for (let d of CATALOG) {
@@ -42,7 +43,13 @@ describe('buildParams', function() {
                 nDeals += m.deals.length
             }
         }
-        assert.strictEqual(nDeals, 136)
+        assert.strictEqual(nDeals, 140)
+        //慣例: 定義id皆小寫(底線分段), 目錄依id字母序(新增定義依序插入; 方向改變法price_ohlc_dirchange位於price_ohlc_cvd之後、price_ohlc_donchian之前)
+        let ids = CATALOG.map((d) => d.id)
+        assert.ok(ids.every((id) => /^[a-z]+(_[a-z]+)+$/.test(id)), 'id須皆小寫')
+        assert.deepStrictEqual(ids, [...ids].sort())
+        assert.strictEqual(ids[ids.indexOf('price_ohlc_dirchange') - 1], 'price_ohlc_cvd')
+        assert.strictEqual(ids[ids.indexOf('price_ohlc_dirchange') + 1], 'price_ohlc_donchian')
         let vbs = CATALOG.find((d) => d.id === 'price_vbs')
         assert.strictEqual(typeof vbs.funAddKeysIn, 'function')
         assert.deepStrictEqual(vbs.fields, ['Volumn', 'TakerBuyBaseAssetVolume'])
@@ -59,7 +66,7 @@ describe('buildParams', function() {
         assert.ok(r.keys.includes('price_ohlc_Close_param_maNorm_1day'), r.keys.join(','))
         assert.ok(r.keys.includes('index_ohlc_Close_param_orig_4hr') || r.keys.some((k) => k.startsWith('index_ohlc_Close_param_orig_')), r.keys.filter((k) => k.startsWith('index_')).join(','))
         assert.ok(r.keys.some((k) => k.startsWith('price_ohlc_none_RSI_rsi_')))
-        assert.ok(r.dropped.length === 31)
+        assert.ok(r.dropped.length === 32)
         //序列檔內容為[{time,param}]且param為z-score
         let arr = JSON.parse(fs.readFileSync(path.resolve(c.fds.param, 'price_ohlc_Close_param_maNorm_1day.json'), 'utf8'))
         assert.ok(arr.length > 100)
@@ -322,6 +329,26 @@ describe('buildParams', function() {
         }
     })
 
+    it('buildKp: 方向改變法(dirChange)亦併入intervalSec(w-data-trade只檢核之), optMethod之intervalSec可覆寫, 其餘optMethod鍵原樣保留(逐點接線: 暫以記錄用之替身取代wdt.calcDirChange後還原)', async function() {
+        let arr = genArrPrice(60)
+        let real = wdt.calcDirChange
+        let seen = []
+        wdt.calcDirChange = async (a, key, o) => {
+            seen.push([key, o])
+            return real(a, key, o)
+        }
+        try {
+            await buildKp({}, { intervalSec: 3600 }).dirChange(arr, 'Close', {})
+            await buildKp({}).dirChange(arr, 'Close')
+            await buildKp({}, { intervalSec: '86400' }).dirChange(arr, 'Close', { intervalSec: 900, keep: 1 })
+        }
+        finally {
+            wdt.calcDirChange = real
+        }
+        assert.strictEqual(wdt.calcDirChange, real, '替身須已還原')
+        assert.deepStrictEqual(seen, [['Close', { intervalSec: 3600 }], ['Close', { intervalSec: 14400 }], ['Close', { intervalSec: 900, keep: 1 }]])
+    })
+
     it('1hr K線: index側之校正(dataCalibrate)與寫出皆以intervalSec 3600呼叫calc, 單根型態之index key標籤為1hr', async function() {
         this.timeout(120000)
         let { cfg } = cfgOf(fdTmp, 600, { root: path.resolve(fdTmp, 'r11'), interval: '1hr', stepMs: 3600 * 1000 })
@@ -385,6 +412,148 @@ describe('buildParams', function() {
         assert.ok(r.keys.includes('price_ohlc_Close_param_ema_1day'), r.keys.join(','))
         assert.ok(!r.keys.some((k) => k.endsWith('_6hr')), r.keys.join(','))
         assert.ok(r.keys.includes('price_ohlc_Close_param_orig_none'), r.keys.join(','))
+    })
+
+    //方向改變法之16個鍵(4個輸出 × 4個門檻)
+    let DIR_OUTS = ['dirState', 'dirRetrace', 'dirRun', 'dirAge']
+    let DIR_LABELS = ['4pct', '6pct', '8pct', '10pct']
+    let DIR_KEYS = DIR_OUTS.flatMap((o) => DIR_LABELS.map((l) => `price_ohlc_none_${o}_dirChange_${l}`)).sort()
+    let DIR_NM = DIR_OUTS.map((o) => nmKeyOf({ id: 'price_ohlc_dirchange' }, 'dirChange', 'none', o))
+    let readParam = (c, k) => JSON.parse(fs.readFileSync(path.resolve(c.fds.param, `${k}.json`), 'utf8'))
+    let near = (a, b) => Math.abs(a - b) <= 1e-12 * Math.max(1, Math.abs(b))
+
+    it('方向改變法(price_ohlc_dirchange): 只在價格側、只需Close; 16鍵; 序列 = (w-data-trade calcDirChange之原值 − nm.avg) / nm.std, nm.avg為nm期間內各門檻攤平之均值', async function() {
+        this.timeout(120000)
+        //目錄
+        let def = CATALOG.find((d) => d.id === 'price_ohlc_dirchange')
+        assert.deepStrictEqual({ cointpe: def.cointpe, keyKind: def.keyKind, fields: def.fields, keysIn: def.keysIn, funAddKeysIn: def.funAddKeysIn }, { cointpe: 'price', keyKind: 'ohlc', fields: ['Close'], keysIn: [], funAddKeysIn: null })
+        assert.deepStrictEqual(def.methods.map((m) => [m.method, m.optMethod, m.deals.map((d) => d.keyOut)]), [['dirChange', null, DIR_OUTS]])
+        assert.ok(!CATALOG.some((d) => d.cointpe === 'index' && d.methods.some((m) => m.method === 'dirChange')), '溢價指數側不列')
+        //建立
+        let { cfg } = cfgOf(fdTmp, n, { root: path.resolve(fdTmp, 'dir4') })
+        let c = normalizeCfg(cfg)
+        await buildOhlc(c)
+        let r = await buildParams(c, { only: ['price_ohlc_dirchange'] })
+        assert.deepStrictEqual(r.defs, ['price_ohlc_dirchange'])
+        assert.deepStrictEqual([...r.keys].sort(), DIR_KEYS)
+        //期望值: 直接以w-data-trade calcDirChange對K線序列檔計原值(訓練期 = 全部數據), nm.avg為各門檻攤平之均值
+        let ohlc = JSON.parse(fs.readFileSync(path.resolve(c.fds.ohlc, `${c.keyOhlc}.json`), 'utf8'))
+        assert.strictEqual(ohlc.length, n)
+        let raw = await wdt.calcDirChange(ohlc, 'Close', { intervalSec: 14400 })
+        assert.deepStrictEqual(raw.map((rr) => rr.period), DIR_LABELS)
+        let meta = JSON.parse(fs.readFileSync(path.resolve(c.fds.meta, 'params.json'), 'utf8'))
+        DIR_OUTS.forEach((o, j) => {
+            let all = raw.flatMap((rr) => rr.vs.map((v) => v[o]))
+            let nm = meta.nm[DIR_NM[j]]
+            assert.ok(near(nm.avg, all.reduce((a, b) => a + b, 0) / all.length), `${o} nm.avg`)
+            assert.ok(nm.std > 0, `${o} nm.std`)
+            for (let rr of raw) {
+                let ser = readParam(c, `price_ohlc_none_${o}_dirChange_${rr.period}`)
+                assert.ok(rr.vs.length > 0, `${o} ${rr.period} 須有確認`)
+                assert.deepStrictEqual(ser.map((v) => v.time), rr.vs.map((v) => v.time), `${o} ${rr.period} time`)
+                ser.forEach((v, i) => {
+                    assert.ok(near(v.param, (rr.vs[i][o] - nm.avg) / nm.std), `${o} ${rr.period} 第${i}筆`)
+                })
+            }
+        })
+    })
+
+    it('方向改變法: 期別段為門檻標籤, 與K線週期無關(4hr、1hr、1day之鍵相同, 同一串收盤之序列值逐值相同)', async function() {
+        this.timeout(120000)
+        let mk = async (name, interval, stepMs) => {
+            let { cfg } = cfgOf(fdTmp, n, { root: path.resolve(fdTmp, name), interval, stepMs })
+            let c = normalizeCfg(cfg)
+            await buildOhlc(c)
+            let r = await buildParams(c, { only: ['price_ohlc_dirchange'] })
+            return { c, r }
+        }
+        let a = await mk('dirI4', '4hr', 4 * 3600 * 1000)
+        let b = await mk('dirI1h', '1hr', 3600 * 1000)
+        let d = await mk('dirI1d', '1day', 86400 * 1000)
+        assert.deepStrictEqual([b.c.intervalSec, d.c.intervalSec], [3600, 86400])
+        for (let x of [a, b, d]) {
+            assert.deepStrictEqual([...x.r.keys].sort(), DIR_KEYS)
+        }
+        for (let k of DIR_KEYS) {
+            let pa = readParam(a.c, k).map((v) => v.param)
+            assert.ok(pa.length > 0, k)
+            assert.deepStrictEqual(readParam(b.c, k).map((v) => v.param), pa, k)
+            assert.deepStrictEqual(readParam(d.c, k).map((v) => v.param), pa, k)
+        }
+    })
+
+    it('方向改變法之dirState: z分數只有兩個值(z− < 0 < z+); 求解之預設門檻格點(−2～2、步長0.1)中, 以「>」分開兩值者(含0)皆恰為dirState = +1之根', async function() {
+        this.timeout(120000)
+        let { cfg } = cfgOf(fdTmp, n, { root: path.resolve(fdTmp, 'dirZ') })
+        let c = normalizeCfg(cfg)
+        await buildOhlc(c)
+        await buildParams(c, { only: ['price_ohlc_dirchange'] })
+        let ohlc = JSON.parse(fs.readFileSync(path.resolve(c.fds.ohlc, `${c.keyOhlc}.json`), 'utf8'))
+        let raw = await wdt.calcDirChange(ohlc, 'Close', { intervalSec: 14400 })
+        let grid = Array.from({ length: 41 }, (v, i) => (i - 20) / 10)
+        DIR_LABELS.forEach((l, j) => {
+            let ps = readParam(c, `price_ohlc_none_dirState_dirChange_${l}`).map((v) => v.param)
+            let ups = raw[j].vs.map((v) => v.dirState === 1)
+            assert.ok(ups.some((x) => x) && ups.some((x) => !x), `${l}: 前提: 兩種狀態皆出現`)
+            let u = [...new Set(ps)].sort((x, y) => x - y)
+            assert.strictEqual(u.length, 2, l)
+            assert.ok(u[0] < 0 && u[1] > 0, `${l}: ${u}`)
+            let sep = grid.filter((th) => ps.some((p) => p > th) && ps.some((p) => !(p > th)))
+            assert.ok(sep.includes(0), `${l}: 0分開兩值`)
+            for (let th of sep) {
+                assert.deepStrictEqual(ps.map((p) => p > th), ups, `${l}: > ${th}`)
+            }
+        })
+    })
+
+    it('既有工作根之升版: 已凍結nm而未含price_ohlc_dirchange之工作根加入此定義重跑(不recalibrate) ⇒ 不拋錯; 既有序列檔與nm逐位不變; 新增16檔與4個nm(以凍結之nm期間自算); nmComputed為4', async function() {
+        this.timeout(180000)
+        let { cfg } = cfgOf(fdTmp, n, { root: path.resolve(fdTmp, 'dirUpg') })
+        let c = normalizeCfg(cfg)
+        await buildOhlc(c)
+        let half = { timeStart: c.train.timeStart, timeEnd: '2023-02-15T00:00:00' }
+        let only0 = ['price_ohlc_close', 'price_ohlc_rsi', 'index_ohlc_close']
+        let r0 = await buildParams(c, { only: only0, nmPeriod: half }) //nm期間凍結為前段
+        let fpMeta = path.resolve(c.fds.meta, 'params.json')
+        let meta0 = JSON.parse(fs.readFileSync(fpMeta, 'utf8'))
+        let snap0 = r0.keys.map((k) => [k, fs.readFileSync(path.resolve(c.fds.param, `${k}.json`))])
+        assert.ok(snap0.length > 50 && !r0.keys.some((k) => DIR_KEYS.includes(k)))
+        //升版: 加入price_ohlc_dirchange(未給nmPeriod、未recalibrate)
+        let r1 = await buildParams(c, { only: [...only0, 'price_ohlc_dirchange'] })
+        let meta1 = JSON.parse(fs.readFileSync(fpMeta, 'utf8'))
+        assert.strictEqual(r1.nmComputed, 4)
+        assert.deepStrictEqual(r1.keys.filter((k) => !DIR_KEYS.includes(k)), r0.keys)
+        assert.deepStrictEqual(r1.keys.filter((k) => DIR_KEYS.includes(k)).sort(), DIR_KEYS)
+        for (let [k, buf] of snap0) {
+            assert.ok(fs.readFileSync(path.resolve(c.fds.param, `${k}.json`)).equals(buf), `既有序列檔逐位不變: ${k}`)
+        }
+        for (let [k, v] of Object.entries(meta0.nm)) {
+            assert.deepStrictEqual(meta1.nm[k], v, `既有nm不變: ${k}`)
+        }
+        assert.deepStrictEqual(Object.keys(meta1.nm).filter((k) => !(k in meta0.nm)), DIR_NM)
+        assert.deepStrictEqual(meta1.nmPeriod, half)
+        assert.deepStrictEqual(meta1.optMethod, meta0.optMethod)
+        //新nm以凍結之nm期間(前段)自算: 同另一工作根以nmPeriod: half全新建立者; 鑑別前提: 前段與全期之nm不同
+        let fresh = async (name, nmPeriod) => {
+            let { cfg: cfg2 } = cfgOf(fdTmp, n, { root: path.resolve(fdTmp, name) })
+            let c2 = normalizeCfg(cfg2)
+            await buildOhlc(c2)
+            await buildParams(c2, { only: ['price_ohlc_dirchange'], nmPeriod })
+            return JSON.parse(fs.readFileSync(path.resolve(c2.fds.meta, 'params.json'), 'utf8')).nm
+        }
+        let nmHalf = await fresh('dirHalf', half)
+        let nmFull = await fresh('dirFull', undefined)
+        for (let k of DIR_NM) {
+            assert.deepStrictEqual(meta1.nm[k], nmHalf[k], k)
+        }
+        assert.ok(DIR_NM.some((k) => meta1.nm[k].avg !== nmFull[k].avg), '鑑別前提: 前段與全期之nm須不同')
+        //再跑一次(穩態): nmComputed 0, 全部序列檔不變
+        let snap1 = r1.keys.map((k) => [k, fs.readFileSync(path.resolve(c.fds.param, `${k}.json`))])
+        let r2 = await buildParams(c, { only: [...only0, 'price_ohlc_dirchange'] })
+        assert.strictEqual(r2.nmComputed, 0)
+        for (let [k, buf] of snap1) {
+            assert.ok(fs.readFileSync(path.resolve(c.fds.param, `${k}.json`)).equals(buf), `穩態: ${k}`)
+        }
     })
 
 })
