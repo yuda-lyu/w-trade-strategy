@@ -6,6 +6,7 @@ import { EVENT_KEYS, SOLVE_OPT_KEYS } from '../src/solve/solve.mjs'
 import { COMPS_ALL, classifyKeys, allowedComps, parseComps, prepareSolve } from '../src/solve/solveRound.mjs'
 import { isKeyCloseOnly, filterKeysCloseOnly, compsCloseOnly } from '../src/params/keysCloseOnly.mjs'
 import { buildFdTmp, cfgOf } from './tools/synthKit.mjs'
+import { untilOne, quickDetOf } from './tools/solveDet.mjs'
 
 
 //規格來源: src/solve/*.mjs、src/params/keysCloseOnly.mjs
@@ -97,7 +98,7 @@ let evOpt = (rec) => ({
 //seqOf, 紀錄器中指定worker之gate/gateEnd/round序列(字串，各項後接逗號)
 let seqOf = (rec, workerId) => rec.log.filter((x) => x.workerId === workerId && ['gate', 'gateEnd', 'round'].includes(x.type)).map((x) => `${x.type},`).join('')
 
-//快速求解設定(合成數據下門檻放寬, 使每輪必有存檔)
+//快速求解設定(合成數據下門檻放寬, 使多數輪有存檔; 單輪仍可為0隻, 故斷言「至少有策略」者不得取決於單輪之產出: 綁定輪數之案用quickDet, 不綁定輪數者與workers>0用untilOne, 見test/tools/solveDet.mjs)
 let quick = {
     thNumTrade: 1,
     thRWin: 0,
@@ -106,6 +107,9 @@ let quick = {
     thsSl: [3, 5],
     oml: { Np: 6, NContiguous: 3, Ng: 15 },
 }
+
+//quickDet, 求解之決定性設定(僅workers為0時可用: 固定亂數、方向、指標組成與挑key, 產出為定數)
+let quickDet = (seed, mode) => quickDetOf(quick, seed, mode)
 
 
 describe('solve', function() {
@@ -167,11 +171,12 @@ describe('solve', function() {
         await assert.rejects(prepareSolve({ ...pl.cfg, train: null }, {}), /cfg.train/)
     })
 
-    it('in-process: maxRounds 2, 事件齊備, 策略庫有檔且格式為estimKeys', async function() {
+    it('in-process: maxRounds 2, 事件齊備, 策略庫有檔且格式為estimKeys(固定亂數、方向、組成與挑key, 產出為定數)', async function() {
         this.timeout(300000)
         let evs = { ready: [], round: [], cand: [], prog: [] }
+        //本案寫入預設策略庫(createPipeline.status之案依賴之); 綁定輪數(maxRounds 2), 故以quickDet固定一切隨機來源而非untilOne
         let r = await pl.solve({
-            ...quick,
+            ...quickDet(41, 'long'),
             maxRounds: 2,
             onReady: (ev) => evs.ready.push(ev),
             onRound: (ev) => evs.round.push(ev),
@@ -184,12 +189,12 @@ describe('solve', function() {
         assert.strictEqual(evs.ready.length, 1)
         assert.strictEqual(evs.round.length, 2)
         assert.strictEqual(evs.prog.length, 2)
-        assert.ok(evs.cand.length > 0)
+        assert.ok(evs.cand.length > 0, '前提: 固定亂數、方向、組成與挑key之求解有候選(產出為定數)')
         assert.strictEqual(r.nCandidates, evs.cand.length)
-        assert.ok(r.nStrategies > 0)
+        assert.ok(r.nStrategies > 0, '前提: 固定亂數、方向、組成與挑key之求解有策略(產出為定數)')
         assert.strictEqual(r.nNew, r.nStrategies)
-        assert.ok(['long', 'short'].includes(evs.round[0].mode))
-        assert.ok(COMPS_ALL.includes(evs.round[0].comps))
+        assert.strictEqual(evs.round[0].mode, 'long')
+        assert.strictEqual(evs.round[0].comps, '1,1,0')
         assert.ok(Array.isArray(evs.cand[0].keys) && evs.cand[0].summary && evs.cand[0].settings)
         assert.strictEqual(pl.countStrategies(), r.nStrategies)
         let ss = pl.readStrategies(null, { readContent: true })
@@ -202,13 +207,36 @@ describe('solve', function() {
         assert.ok(s.summary.rSharpe !== undefined, '存檔前官方重跑, summary應為完整欄位')
     })
 
+    it('in-process: maxRounds 2, 預設之方向與組成每輪隨機(取自long/short與COMPS_ALL), 事件齊備; 不依賴單輪之產出數', async function() {
+        this.timeout(300000)
+        let evs = { ready: [], round: [], cand: [], prog: [] }
+        let r = await pl.solve({
+            ...quick,
+            fdStrategies: path.resolve(fdTmp, 'lib1'),
+            maxRounds: 2,
+            onReady: (ev) => evs.ready.push(ev),
+            onRound: (ev) => evs.round.push(ev),
+            onCandidate: (ev) => evs.cand.push(ev),
+            onProgress: (ev) => evs.prog.push(ev),
+        })
+        assert.strictEqual(r.state, 'done')
+        assert.strictEqual(r.stopReason, 'maxRounds')
+        assert.strictEqual(r.nRounds, 2)
+        assert.strictEqual(evs.ready.length, 1)
+        assert.strictEqual(evs.round.length, 2)
+        assert.strictEqual(evs.prog.length, 2)
+        assert.strictEqual(r.nCandidates, evs.cand.length) //候選數與存檔數取決於隨機搜尋(單輪可為0), 只斷言兩者一致而不斷言其大小
+        assert.strictEqual(r.nNew, r.nStrategies) //空庫起算
+        assert.ok(evs.round.every((ev) => ['long', 'short'].includes(ev.mode) && COMPS_ALL.includes(ev.comps)), JSON.stringify(evs.round.map((ev) => [ev.mode, ev.comps])))
+    })
+
     it('maxStrategies與shouldStop停止; mode固定; timeEndByMode', async function() {
         this.timeout(300000)
         let fdStrategies = path.resolve(fdTmp, 'lib2')
         let cfg2 = { ...pl.cfg, train: { ...pl.cfg.train, timeEndByMode: { long: '2023-03-01T00:00:00' } } }
         let pl2 = createPipeline({ ...cfg2, fds: { ...pl.cfg.fds } })
-        let r = await pl2.solve({ ...quick, fdStrategies, maxStrategies: 1, mode: 'long' })
-        assert.strictEqual(r.stopReason, 'maxStrategies')
+        let r = await pl2.solve({ ...quick, fdStrategies, ...untilOne, mode: 'long' }) //單輪可能0隻: 求解至策略庫有1隻, 輪數有上限30
+        assert.strictEqual(r.stopReason, 'maxStrategies', '前提: 至多30輪內取得至少1隻策略')
         assert.ok(r.nStrategies >= 1)
         let ss = pl2.readStrategies(fdStrategies, { readContent: true })
         assert.ok(ss.every((x) => x.data.mode === 'long'))
@@ -235,8 +263,12 @@ describe('solve', function() {
         assert.strictEqual(ready.length, 2)
         assert.deepStrictEqual(ready.map((x) => x.workerId).sort(), [0, 1])
         assert.strictEqual(ready[0].counts.volumn, 0)
-        assert.ok(r.nStrategies > 0)
         assert.deepStrictEqual(r.errors, [])
+        //workers內不能帶函數(無法固定亂數與挑key), 且上列綁定輪數(maxRounds 2): 不斷言其產出數; worker產出策略改以有上限之輪數另測(untilOne)
+        let rU = await pl.solve({ ...quick, fdStrategies: path.resolve(fdTmp, 'lib3u'), workers: 2, closeOnly: true, ...untilOne })
+        assert.strictEqual(rU.stopReason, 'maxStrategies', '前提: 至多30輪內workers求解至少取得1隻策略')
+        assert.ok(rU.nStrategies >= 1)
+        assert.deepStrictEqual(rU.errors, [])
         //函數選項
         await assert.rejects(pl.solve({ ...quick, fdStrategies, workers: 1, maxRounds: 1, funFilterKeysNorm: (ks) => ks }), /不可為函數/)
         //不認得之鍵
@@ -476,7 +508,8 @@ describe('solve', function() {
             this.timeout(300000)
             let fd = lib('g_pre')
             //種一檔: in-process跑到策略庫達1檔
-            let seed = await pl.solve({ ...quick, fdStrategies: fd, maxStrategies: 1 })
+            let seed = await pl.solve({ ...quick, fdStrategies: fd, ...untilOne }) //單輪可能0隻: 求解至策略庫有1隻, 輪數有上限30
+            assert.strictEqual(seed.stopReason, 'maxStrategies', '前提: 至多30輪內取得至少1隻策略')
             assert.ok(seed.nStrategies >= 1)
             let recOf = () => {
                 let rec = makeRec()
@@ -590,7 +623,7 @@ describe('solve', function() {
                 fdStrategies: lib('g_hold_max'),
                 workers: 2,
                 closeOnly: true,
-                maxStrategies: 1,
+                ...untilOne, //單輪可能0隻: worker 0求解至策略庫有1隻(maxStrategies 1), 輪數有上限30
                 ...evOpt(rec),
                 gate: async (ev) => {
                     rec.add('gate', { workerId: ev.workerId })

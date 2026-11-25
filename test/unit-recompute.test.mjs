@@ -17,6 +17,7 @@ import { canonOf, idOf, relationOf } from '../src/recompute/pathRelation.mjs'
 import { acquireRecomputeLock, releaseRecomputeLock } from '../src/recompute/recomputeLock.mjs'
 import { makeOtt } from '../src/util/ott.mjs'
 import { buildFdTmp, cfgOf } from './tools/synthKit.mjs'
+import { untilOne } from './tools/solveDet.mjs'
 
 
 //規格來源: src/recompute/recomputeStrategies.mjs 與 recomputeStrategies_core.mjs 之 JSDoc(策略庫重算: 不重新求解, 依基礎單位重算摘要)
@@ -52,6 +53,8 @@ let fdLib = null //以求解建立之策略庫(未給unit)
 let fns = null
 
 let listJson = (fd) => fs.readdirSync(fd).filter((f) => f.endsWith('.json')).sort()
+//nOfMode, 策略庫內指定方向之策略數(檔名以方向起頭: long_…、short_…)
+let nOfMode = (fd, mode) => listJson(fd).filter((f) => f.startsWith(`${mode}_`)).length
 let readJ = (fd, fn) => JSON.parse(fs.readFileSync(path.resolve(fd, fn), 'utf8'))
 let sha = (b) => crypto.createHash('sha256').update(b).digest('hex')
 //snapshot, 資料夾第1層之全部項目與各檔之雜湊(子夾記為<dir>)
@@ -127,6 +130,13 @@ describe('recomputeStrategies(策略庫依基礎單位重算)', function() {
         fdLib = base.fds.strategies
         await pl.solve({ ...quick, mode: 'long', maxRounds: 2 })
         await pl.solve({ ...quick, mode: 'short', maxRounds: 2 })
+        //單輪之產出可為0隻(罕見): 做多與做空各不足2隻者補求解至足(maxStrategies以庫內總數計, 補足所缺之隻數; 輪數有上限; 見test/tools/solveDet.mjs)
+        for (let mode of ['long', 'short']) {
+            let lack = 2 - nOfMode(fdLib, mode)
+            if (lack > 0) {
+                await pl.solve({ ...quick, mode, maxStrategies: listJson(fdLib).length + lack, maxRounds: untilOne.maxRounds })
+            }
+        }
         fns = listJson(fdLib)
         cfgU = normalizeCfg({ ...base, settings: { ...base.settings, uIni: 10000, unit: unitR } })
     })
@@ -140,6 +150,9 @@ describe('recomputeStrategies(策略庫依基礎單位重算)', function() {
 
     it('前提: 策略庫有做多與做空之策略, 且各單名義隨進場價而異', async function() {
         assert.ok(fns.length >= 4, `策略數 ${fns.length}`)
+        for (let mode of ['long', 'short']) {
+            assert.ok(nOfMode(fdLib, mode) >= 2, `${mode}之策略數 ${nOfMode(fdLib, mode)}(補求解至多${untilOne.maxRounds}輪仍不足)`)
+        }
         let ms = new Set(fns.map((f) => f.split('_')[0]))
         assert.ok(ms.has('long') && ms.has('short'))
         let r = await replay(readJ(fdLib, fns[0]), settingsU(readJ(fdLib, fns[0])))

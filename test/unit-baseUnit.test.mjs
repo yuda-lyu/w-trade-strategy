@@ -16,6 +16,7 @@ import sweepSingle from '../src/sweep/sweepSingle.mjs'
 import sweepPairs from '../src/sweep/sweepPairs.mjs'
 import { makeOtt } from '../src/util/ott.mjs'
 import { buildFdTmp, cfgOf } from './tools/synthKit.mjs'
+import { untilOne, quickDetOf } from './tools/solveDet.mjs'
 
 
 //規格來源: src/cfg.mjs(normalizeUnit、normalizeCfg之settings.unit)、src/sweep/*.mjs、src/solve/*.mjs 之 JSDoc
@@ -24,6 +25,7 @@ import { buildFdTmp, cfgOf } from './tools/synthKit.mjs'
 //  B3 單一策略不設持倉門檻: 最大持倉名義是否超過uIni不檢、不剔除、不中止, 只隨summary落地; 普測之挑選與求解之入庫不因uIni而變; 回傳、事件與status不帶新鍵
 //  B4 未給unit時行為不變: 策略之settings無unit(求解照舊不讀cfg.settings)
 //  B2(加速核心) src/solve/fastEngine.mjs: 以策略之settings(含unit)評估, 其摘要與官方runStrategy之對應欄相同
+//  前提(求解之決定性) 求解為隨機最佳化, 單輪之產出數不保證; 斷言「至少一個策略」之案(in-process)以quickDet固定一切隨機來源, 產出方為定數; workers>0時函數不跨worker, 該案改以有上限之輪數取得前提(role-coder-for-test §9.1)
 
 
 let fdTmp = buildFdTmp('baseUnit')
@@ -50,6 +52,18 @@ let noTimeTest = (sm) => {
     let { timeTest, ...rest } = sm
     return rest
 }
+
+//quickDet, 求解之決定性設定(僅workers為0時可用: 函數不跨worker; 固定亂數、方向、指標組成與挑key, 見test/tools/solveDet.mjs)
+let quickDet = (seed, mode = 'long') => quickDetOf(quick, seed, mode)
+
+//contentOf, 策略庫之內容(檔名與內容, 排除時間欄summary.timeTest與solve.timeSolved; 依檔名排序), 供逐位比對
+let contentOf = (fd) => readStrategies(fd, { readContent: true })
+    .map((x) => {
+        let { timeSolved, ...solve } = x.data.solve
+        return JSON.stringify([x.name, { ...x.data, summary: noTimeTest(x.data.summary), solve }])
+    })
+    .sort()
+    .join('\n')
 
 //STATUS_KEYS, 求解器status之鍵(1.0.14; 給unit不加鍵)
 let STATUS_KEYS = 'elapsedMs,engine,errors,fdStrategies,nCandidates,nNew,nRounds,nStrategies,nStrategiesStart,state,stopReason,workers'
@@ -360,9 +374,9 @@ describe('基礎單位(settings.unit)', function() {
             let c = withUnit(10000, { fds: { ...base.fds, strategies: path.resolve(fdTmp, 'libU') } })
             let pl = createPipeline(c)
             let rounds = []
-            let st = await pl.solve({ ...quick, maxRounds: 2, onRound: (ev) => rounds.push(ev) })
+            let st = await pl.solve({ ...quickDet(31), maxRounds: 2, onRound: (ev) => rounds.push(ev) })
             let ss = pl.readStrategies(null, { readContent: true })
-            assert.ok(ss.length > 0)
+            assert.ok(ss.length > 0, '前提: 固定亂數與挑key之求解有策略(產出為定數)')
             for (let x of ss) {
                 let s = x.data
                 assert.deepStrictEqual(Object.keys(s.settings), ['uIni', 'uTrade', 'rTakeProfit', 'rStopLoss', 'rFee', 'unit']) //B2
@@ -379,9 +393,9 @@ describe('基礎單位(settings.unit)', function() {
         it('B2/K4 in-process: cfg之unit與uIni給數字字串時, 策略檔之settings.uIni與unit為數值(同數值寫法), 摘要依基礎單位', async function() {
             let c = normalizeCfg({ ...base, settings: { ...base.settings, uIni: '10000', unit: unitStrT }, fds: { ...base.fds, strategies: path.resolve(fdTmp, 'libS') } })
             let pl = createPipeline(c)
-            await pl.solve({ ...quick, maxRounds: 2 })
+            await pl.solve({ ...quickDet(32, 'short'), maxRounds: 2 })
             let ss = pl.readStrategies(null, { readContent: true })
-            assert.ok(ss.length > 0)
+            assert.ok(ss.length > 0, '前提: 固定亂數與挑key之求解有策略(產出為定數)')
             for (let x of ss) {
                 let s = x.data
                 assert.deepStrictEqual(Object.keys(s.settings), ['uIni', 'uTrade', 'rTakeProfit', 'rStopLoss', 'rFee', 'unit'])
@@ -395,9 +409,11 @@ describe('基礎單位(settings.unit)', function() {
         it('B2 加速核心(makeFastEngine): 同一含unit之策略, 其摘要與runStrategy之對應欄相同; 拿掉unit即不同(證加速核心依settings評估)', async function() {
             //本案自建策略庫(不依賴他案)
             let c = withUnit(10000, { fds: { ...base.fds, strategies: path.resolve(fdTmp, 'libFast') } })
-            await createPipeline(c).solve({ ...quick, maxRounds: 2 })
+            await createPipeline(c).solve({ ...quickDet(33, 'long'), maxRounds: 2 }) //做多與做空各求解一次(固定亂數與挑key, 產出為定數)
+            await createPipeline(c).solve({ ...quickDet(37, 'short'), maxRounds: 2 })
             let ss = readStrategies(path.resolve(fdTmp, 'libFast'), { readContent: true })
-            assert.ok(ss.length > 0, '前提: 有含unit之策略')
+            assert.ok(ss.length > 0, '前提: 有含unit之策略(固定亂數與挑key之求解, 產出為定數)')
+            assert.deepStrictEqual([...new Set(ss.map((x) => x.data.mode))].sort(), ['long', 'short'], '前提: 做多與做空之策略皆有')
             let ott = makeOtt(c.timeZone)
             let nCmp = 0
             for (let x of ss) {
@@ -423,10 +439,10 @@ describe('基礎單位(settings.unit)', function() {
             let c = withUnit(1, { fds: { ...base.fds, strategies: path.resolve(fdTmp, 'libTiny') } })
             let pl = createPipeline(c)
             let cands = []
-            let st = await pl.solve({ ...quick, maxRounds: 2, onCandidate: (ev) => cands.push(ev) })
+            let st = await pl.solve({ ...quickDet(34, 'short'), maxRounds: 2, onCandidate: (ev) => cands.push(ev) })
             assert.strictEqual(st.stopReason, 'maxRounds') //B3 不中止
-            assert.ok(st.nStrategies > 0) //B3 不剔除
-            assert.ok(cands.length > 0)
+            assert.ok(st.nStrategies > 0, '前提: 固定亂數與挑key之求解有策略(產出為定數)') //B3 不剔除
+            assert.ok(cands.length > 0, '前提: 有候選(產出為定數)')
             let ss = pl.readStrategies(null, { readContent: true })
             assert.ok(ss.every((x) => x.data.summary.uTradeAllMax > 1 && x.data.settings.uIni === 1), '前提: 最大持倉名義皆大於uIni')
             assert.ok(cands.some((ev) => ev.summary.uTradeAllMax > 1))
@@ -435,21 +451,45 @@ describe('基礎單位(settings.unit)', function() {
         it('B2 workers 1: worker內之求解同樣以unit落地', async function() {
             let c = withUnit(10000, { fds: { ...base.fds, strategies: path.resolve(fdTmp, 'libW') } })
             let pl = createPipeline(c)
-            let st = await pl.solve({ ...quick, workers: 1, maxRounds: 1 })
+            //worker內不能帶函數(無法注入亂數、固定挑key), 單輪之產出數取決於偶然: 不斷言單輪之產出數, 改以有上限之輪數取得前提(maxStrategies 1: 策略庫有策略即停, 通常一輪; maxRounds 30: 上限, 同unit-basis、unit-interval之untilOne; 連續30輪皆無策略方失敗), 再對每個產出逐一斷言
+            let st = await pl.solve({ ...quick, workers: 1, ...untilOne })
             assert.deepStrictEqual(st.errors, [])
             let ss = pl.readStrategies(null, { readContent: true })
-            assert.ok(ss.length > 0)
+            assert.ok(ss.length > 0, '前提: 至多30輪內worker求解至少取得一個策略')
             assert.ok(ss.every((x) => JSON.stringify(x.data.settings.unit) === JSON.stringify(unitT) && x.data.settings.uIni === 10000)) //B2
+        })
+
+        it('B2/B4 前提: 同種子之opt.oml.random加固定之方向/組成/挑key, 兩次求解之策略庫逐位相同(除時間欄)且有產出; opt.oml.random確實被最佳化器取用', async function() {
+            let nCall = 0
+            let run = async (tag) => {
+                let opt = { ...quickDet(36), maxRounds: 2 }
+                let rnd = opt.oml.random
+                let counted = () => {
+                    nCall++
+                    return rnd()
+                }
+                opt.oml = { ...opt.oml, random: counted } //計數包裝(不改取值)
+                let c = withUnit(10000, { fds: { ...base.fds, strategies: path.resolve(fdTmp, `libD${tag}`) } })
+                await createPipeline(c).solve(opt)
+                return contentOf(path.resolve(fdTmp, `libD${tag}`))
+            }
+            let a = await run('a')
+            let nCallA = nCall
+            let b = await run('b')
+            assert.ok(a.length > 0, '前提: 固定亂數與挑key之求解有策略(產出為定數)')
+            assert.ok(nCallA > 0, 'opt.oml.random須傳至最佳化器並被取用: 未被取用則求解仍取決於偶然, 本檔斷言「至少一個策略」之各案不再成立')
+            assert.strictEqual(nCall, 2 * nCallA, '同種子之兩次求解須取用相同次數之亂數')
+            assert.ok(a === b, '同種子之兩次求解須得逐位相同之策略庫(除時間欄): 不同者表示求解仍有未固定之隨機來源(opt.oml.random之傳遞、挑key、方向或組成)')
         })
 
         it('B4: 未給unit時策略之settings無unit且uIni為1000(求解不讀cfg.settings, 同既有)', async function() {
             let c = normalizeCfg({ ...base, settings: { uIni: 10000 }, fds: { ...base.fds, strategies: path.resolve(fdTmp, 'libN') } })
             let pl = createPipeline(c)
             let rounds = []
-            let st = await pl.solve({ ...quick, maxRounds: 1, onRound: (ev) => rounds.push(ev) })
+            let st = await pl.solve({ ...quickDet(35), maxRounds: 1, onRound: (ev) => rounds.push(ev) })
             assert.strictEqual(keysOf(st), STATUS_KEYS)
             let ss = pl.readStrategies(null, { readContent: true })
-            assert.ok(ss.length > 0)
+            assert.ok(ss.length > 0, '前提: 固定亂數與挑key之求解有策略(產出為定數)')
             assert.ok(ss.every((x) => Object.keys(x.data.settings).join() === 'uIni,uTrade,rTakeProfit,rStopLoss,rFee' && x.data.settings.uIni === 1000)) //B4
         })
 
