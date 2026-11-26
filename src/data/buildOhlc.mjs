@@ -92,7 +92,7 @@ let readCsvFolder = async (fdSrcCsv, heads) => {
     }
     let chead = hs.join(',')
 
-    let vfps = fsTreeFolder(fdSrcCsv)
+    let vfps = fsTreeFolder(fdSrcCsv, { levelLimit: 1 }) //僅第1層(分段檔與_gaps.json同夾; opt.levelLimit未給會窮舉全部層級, 故須明給1)
     vfps = filter(vfps, { isFolder: false })
     vfps = filter(vfps, (v) => v.name.endsWith('.csv'))
     vfps = sortBy(vfps, 'name') //分段檔名為時間tag, 依名排序即依時間排序
