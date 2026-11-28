@@ -156,6 +156,29 @@ describe('solve', function() {
         assert.deepStrictEqual(classifyKeys(ks), { keysNorm: ks, keysIndex: [], keysVolumn: [] })
     })
 
+    it('動能(momz)、波動延伸(volx)、下跌統計(down)、主動買賣量流(flow)之鍵: 只有momz放行close-only(calcMomz只讀Close; 同rsi不看keyIn), volx、down、flow皆不放行; 四者皆分類為一般類', function() {
+        //規格: keysCloseOnly 之 METHODS_CLOSE_ONLY 含 momz 而不含 volx、down、flow(volx 讀 Open/High/Low/Close, down 另讀 Volumn, flow 讀 Volumn 與 TakerBuyBaseAssetVolume); classifyKeys 只依前綴 index_ 與 _vbs_
+        //keyIn: momz與down以其key參數為取值欄位名(keysIn為['Close'], 鍵名之第3段為Close), volx與flow不讀key(第3段為none)
+        let keysOf = (keyIn, method, outs, labels) => outs.flatMap((o) => labels.map((l) => `price_ohlc_${keyIn}_${o}_${method}_${l}`))
+        let momz = keysOf('Close', 'momz', ['momZ', 'vel', 'acc', 'ext', 'er'], ['12hr', '30day'])
+        let volx = keysOf('none', 'volx', ['rv', 'park', 'gk', 'rs', 'rvRatio', 'chop', 'downShare', 'jumpShare', 'varRatio', 'volOfVol'], ['12hr', '30day'])
+        let down = keysOf('Close', 'down', ['downBars', 'downVol', 'crashN'], ['12hr', '30day'])
+        let flow = keysOf('none', 'flow', ['buyL', 'buyV', 'buyA', 'sellL', 'sellV', 'sellA', 'netL', 'netV', 'netA', 'shareL', 'shareV', 'shareA'], ['12hr', '30day'])
+        assert.deepStrictEqual([momz.length, volx.length, down.length, flow.length], [10, 20, 6, 24])
+        for (let k of momz) {
+            assert.strictEqual(isKeyCloseOnly(k), true, k)
+        }
+        for (let k of [...volx, ...down, ...flow]) {
+            assert.strictEqual(isKeyCloseOnly(k), false, k)
+        }
+        assert.strictEqual(isKeyCloseOnly('price_ohlc_Open_momZ_momz_12hr'), true) //指標類不看keyIn(同rsi)
+        assert.strictEqual(isKeyCloseOnly('price_ohlc_Close_rv_volx_12hr'), false) //volx不因keyIn為Close而放行
+        assert.strictEqual(isKeyCloseOnly('price_ohlc_Close_downBars_down_12hr'), false) //down不因keyIn為Close而放行(另讀Volumn)
+        let all = [...momz, ...volx, ...down, ...flow]
+        assert.deepStrictEqual(filterKeysCloseOnly(all), momz)
+        assert.deepStrictEqual(classifyKeys(all), { keysNorm: all, keysIndex: [], keysVolumn: [] })
+    })
+
     it('prepareSolve: 分類數、組成過濾、closeOnly; 無train即throw', async function() {
         let p = await prepareSolve(pl.cfg, {})
         assert.ok(p.counts.norm > 0 && p.counts.index > 0 && p.counts.volumn > 0, JSON.stringify(p.counts))

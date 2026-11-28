@@ -44,7 +44,7 @@ let test = async () => {
     //1. 數據 → 參數 → 先觸快取(source 為 'binance' 時先 await pl.fetchData(); 亦可一次 await pl.prepare())
     let ro = await pl.buildOhlc({ dropIncompleteLastBar: false })
     ms.push(`buildOhlc: ${ro.nPrice} 根 ${ro.timeFirst} ~ ${ro.timeLast}`)
-    let rp = await pl.buildParams({ only: ['price_ohlc_close', 'price_ohlc_rsi', 'price_ohlc_macd', 'index_ohlc_close'] }) //未給 only 即內建 35 個定義全算
+    let rp = await pl.buildParams({ only: ['price_ohlc_close', 'price_ohlc_rsi', 'price_ohlc_macd', 'index_ohlc_close'] }) //未給 only 即內建 39 個定義全算
     ms.push(`buildParams: ${rp.nKeys} 個因子序列(nm 由訓練期自算並凍結於 meta), 剔除 ${rp.dropped.length} 個定義`)
     let rc = await pl.buildCache({ tps: [5, 7] })
     ms.push(`buildCache: ${rc.meta.nBars} 根 × ${rc.want.modes.length} 方向 × ${rc.want.tps.length} 組止盈止損`)
@@ -87,7 +87,7 @@ test()
         console.log(err)
     })
 // => buildOhlc: 600 根 2023-01-01T00:00:00 ~ 2023-04-10T20:00:00
-// => buildParams: 100 個因子序列(nm 由訓練期自算並凍結於 meta), 剔除 31 個定義
+// => buildParams: 100 個因子序列(nm 由訓練期自算並凍結於 meta), 剔除 35 個定義
 // => buildCache: 600 根 × 2 方向 × 2 組止盈止損
 // => sweepSingle: 8 個因子 → 16 隻單因子策略
 // => sweepPairs: 16 個配對工作 → 47 隻雙因子策略

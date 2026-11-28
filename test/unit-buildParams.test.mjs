@@ -14,7 +14,8 @@ import { SCENARIOS, runScenario } from './tools/bpParity.mjs'
 
 
 //規格來源: src/params/buildParams.mjs、src/params/catalog.mjs
-//  內建目錄35個定義(price 21、index 14; 含方向改變法price_ohlc_dirchange), 輸出key命名`${cointpe}_${keyKind}_${keyIn}_${keyOut}_${method}_${period}`
+//  內建目錄39個定義(price 25、index 14; 含方向改變法price_ohlc_dirchange與動能price_ohlc_momz、波動延伸price_ohlc_volx、下跌統計price_ohlc_down、主動買賣量流price_ohlc_flow), 輸出key命名`${cointpe}_${keyKind}_${keyIn}_${keyOut}_${method}_${period}`
+//  動能、波動延伸、下跌統計、主動買賣量流(method momz、volx、down、flow, w-data-trade calcMomz、calcVolx、calcDown、calcFlow): 只在價格側; 輸出5、10、3、12個 × 各calc內建之9期(根數3、4、5、6、12、24、42、90、180; 標籤依intervalSec換算) = 270鍵; 讀取之K線欄位依各定義之fields(缺欄即剔除); nm同其他定義(凍結, 新定義於既有工作根以凍結之nm期間自算, 不須recalibrate); 可由opt.exclude排除
 //  方向改變法(method dirChange, w-data-trade calcDirChange): 只在價格側; 4個輸出 × 4個門檻(4、6、8、10%) = 16鍵; 期別段為門檻標籤`${門檻}pct`, 不隨K線週期改變; nm同其他定義(凍結, 新定義於既有工作根以凍結之nm期間自算, 不須recalibrate)
 //  K線週期(根數為本; w-data-trade >= 1.0.50): 各calc內建週期表之值為根數, 標籤以每根4hr寫定(label = 根數 × 4hr); 給opt.intervalSec(每根秒數)時根數不變、標籤改為 根數 × 每根秒數
 //    maNorm等之根數 6、12、24、42、90、180: 4hr為 1day、2day、4day、7day、15day、30day; 1hr為 6hr、12hr、1day、42hr、90hr、180hr; 1day為 6day、12day、24day、42day、90day、180day
@@ -38,9 +39,9 @@ describe('buildParams', function() {
         fs.rmSync(fdTmp, { recursive: true, force: true })
     })
 
-    it('內建目錄: price 21個、index 14個定義, 140個輸出', function() {
-        assert.strictEqual(CATALOG.length, 35)
-        assert.strictEqual(CATALOG.filter((d) => d.cointpe === 'price').length, 21)
+    it('內建目錄: price 25個、index 14個定義, 170個輸出', function() {
+        assert.strictEqual(CATALOG.length, 39)
+        assert.strictEqual(CATALOG.filter((d) => d.cointpe === 'price').length, 25)
         assert.strictEqual(CATALOG.filter((d) => d.cointpe === 'index').length, 14)
         let nDeals = 0
         for (let d of CATALOG) {
@@ -48,13 +49,16 @@ describe('buildParams', function() {
                 nDeals += m.deals.length
             }
         }
-        assert.strictEqual(nDeals, 140)
-        //慣例: 定義id皆小寫(底線分段), 目錄依id字母序(新增定義依序插入; 方向改變法price_ohlc_dirchange位於price_ohlc_cvd之後、price_ohlc_donchian之前)
+        assert.strictEqual(nDeals, 170)
+        //慣例: 定義id皆小寫(底線分段), 目錄依id字母序(新增定義依序插入; 方向改變法price_ohlc_dirchange位於price_ohlc_cvd之後、price_ohlc_donchian之前; 下跌統計price_ohlc_down位於price_ohlc_donchian之後、主動買賣量流price_ohlc_flow之前、其後為price_ohlc_ichimoku; 動能price_ohlc_momz位於price_ohlc_mfi之後、price_ohlc_obv之前; 波動延伸price_ohlc_volx位於price_ohlc_supertrend之後、price_ohlc_vortex之前)
         let ids = CATALOG.map((d) => d.id)
         assert.ok(ids.every((id) => /^[a-z]+(_[a-z]+)+$/.test(id)), 'id須皆小寫')
         assert.deepStrictEqual(ids, [...ids].sort())
         assert.strictEqual(ids[ids.indexOf('price_ohlc_dirchange') - 1], 'price_ohlc_cvd')
         assert.strictEqual(ids[ids.indexOf('price_ohlc_dirchange') + 1], 'price_ohlc_donchian')
+        assert.deepStrictEqual(ids.slice(ids.indexOf('price_ohlc_donchian'), ids.indexOf('price_ohlc_donchian') + 4), ['price_ohlc_donchian', 'price_ohlc_down', 'price_ohlc_flow', 'price_ohlc_ichimoku'])
+        assert.deepStrictEqual(ids.slice(ids.indexOf('price_ohlc_mfi'), ids.indexOf('price_ohlc_mfi') + 3), ['price_ohlc_mfi', 'price_ohlc_momz', 'price_ohlc_obv'])
+        assert.deepStrictEqual(ids.slice(ids.indexOf('price_ohlc_supertrend'), ids.indexOf('price_ohlc_supertrend') + 3), ['price_ohlc_supertrend', 'price_ohlc_volx', 'price_ohlc_vortex'])
         let vbs = CATALOG.find((d) => d.id === 'price_vbs')
         assert.strictEqual(typeof vbs.funAddKeysIn, 'function')
         assert.deepStrictEqual(vbs.fields, ['Volumn', 'TakerBuyBaseAssetVolume'])
@@ -71,7 +75,7 @@ describe('buildParams', function() {
         assert.ok(r.keys.includes('price_ohlc_Close_param_maNorm_1day'), r.keys.join(','))
         assert.ok(r.keys.includes('index_ohlc_Close_param_orig_4hr') || r.keys.some((k) => k.startsWith('index_ohlc_Close_param_orig_')), r.keys.filter((k) => k.startsWith('index_')).join(','))
         assert.ok(r.keys.some((k) => k.startsWith('price_ohlc_none_RSI_rsi_')))
-        assert.ok(r.dropped.length === 32)
+        assert.ok(r.dropped.length === 36)
         //序列檔內容為[{time,param}]且param為z-score
         let arr = JSON.parse(fs.readFileSync(path.resolve(c.fds.param, 'price_ohlc_Close_param_maNorm_1day.json'), 'utf8'))
         assert.ok(arr.length > 100)
@@ -354,6 +358,76 @@ describe('buildParams', function() {
         assert.deepStrictEqual(seen, [['Close', { intervalSec: 3600 }], ['Close', { intervalSec: 14400 }], ['Close', { intervalSec: 900, keep: 1 }]])
     })
 
+    //動能(momz)、波動延伸(volx)、下跌統計(down)、主動買賣量流(flow): method名稱、對應之w-data-trade計算函數、keyIn(輸出key之第3段; momz與down以其key參數為取值欄位名, 故為Close, volx與flow不讀key, 為none)、輸出欄、讀取之K線欄位(手寫期望值, 不取自src)
+    let EXTRA = [
+        { id: 'price_ohlc_momz', method: 'momz', fn: 'calcMomz', keyIn: 'Close', fields: ['Close'], outs: ['momZ', 'vel', 'acc', 'ext', 'er'] },
+        { id: 'price_ohlc_volx', method: 'volx', fn: 'calcVolx', keyIn: 'none', fields: ['Open', 'High', 'Low', 'Close'], outs: ['rv', 'park', 'gk', 'rs', 'rvRatio', 'chop', 'downShare', 'jumpShare', 'varRatio', 'volOfVol'] },
+        { id: 'price_ohlc_down', method: 'down', fn: 'calcDown', keyIn: 'Close', fields: ['Close', 'Volumn'], outs: ['downBars', 'downVol', 'crashN'] },
+        { id: 'price_ohlc_flow', method: 'flow', fn: 'calcFlow', keyIn: 'none', fields: ['Volumn', 'TakerBuyBaseAssetVolume'], outs: ['buyL', 'buyV', 'buyA', 'sellL', 'sellV', 'sellA', 'netL', 'netV', 'netA', 'shareL', 'shareV', 'shareA'] },
+    ]
+    let EXTRA_IDS = EXTRA.map((x) => x.id)
+    let EXTRA_LENS = [3, 4, 5, 6, 12, 24, 42, 90, 180] //各calc內建週期表之根數(4者相同)
+    let EXTRA_LABELS_4HR = ['12hr', '16hr', '20hr', '1day', '2day', '4day', '7day', '15day', '30day'] //根數 × 4hr
+    let EXTRA_LABELS_1DAY = ['3day', '4day', '5day', '6day', '12day', '24day', '42day', '90day', '180day'] //根數 × 1day
+    let extraKey = (x, o, label) => `price_ohlc_${x.keyIn}_${o}_${x.method}_${label}`
+    let extraKeys = (x, labels) => x.outs.flatMap((o) => labels.map((l) => extraKey(x, o, l))).sort()
+    let extraNm = (x) => x.outs.map((o) => nmKeyOf({ id: x.id }, x.method, x.keyIn, o))
+
+    //genArrFull, 合成K線(各欄之值逐筆相異): 於genArrPrice之上把High與Low各加減與序號成正比之小量(原High為max(開, 收) + 1、Low為min(開, 收) − 1, 相鄰兩根可相同)
+    let genArrFull = (n, opt = {}) => genArrPrice(n, opt).map((v, i) => ({ ...v, High: v.High + 0.0001 * (i + 1), Low: v.Low - 0.0001 * (i + 1) }))
+
+    //cfgFull, 同cfgOf, 價格K線改用genArrFull
+    let cfgFull = (name, n, ov = {}) => {
+        let { cfg, arrI } = cfgOf(fdTmp, n, { root: path.resolve(fdTmp, name), ...ov })
+        let arrP = genArrFull(n, { stepMs: ov.stepMs !== undefined ? ov.stepMs : 4 * 3600 * 1000 })
+        return { cfg: { ...cfg, source: { price: arrP, index: arrI } }, arrP }
+    }
+
+    it('buildKp: 動能(momz)、波動延伸(volx)、下跌統計(down)、主動買賣量流(flow)各接到對應之w-data-trade計算(calcMomz、calcVolx、calcDown、calcFlow)並併入intervalSec(逐點接線: 暫以記錄用且各回不同標記之替身取代四個calc後還原)', async function() {
+        let arr = genArrPrice(60)
+        let reals = {}
+        let seen = []
+        for (let x of EXTRA) {
+            reals[x.fn] = wdt[x.fn]
+            assert.strictEqual(typeof reals[x.fn], 'function', `${x.fn}須存在於所裝之w-data-trade`)
+            wdt[x.fn] = async (a, key, o) => {
+                seen.push([x.fn, a === arr, key, o])
+                return [{ period: `by_${x.fn}`, len: 1, vs: [] }]
+            }
+        }
+        let got = {}
+        try {
+            for (let x of EXTRA) {
+                seen.length = 0
+                let kpMethods = [buildKp({}, { intervalSec: 3600 }), buildKp({}), buildKp({}, { intervalSec: '86400' }), buildKp({}, { intervalSec: '86400' })]
+                assert.strictEqual(typeof kpMethods[0][x.method], 'function', `buildKp須有method ${x.method}`)
+                let rs = [
+                    await kpMethods[0][x.method](arr, 'Close', {}),
+                    await kpMethods[1][x.method](arr, 'Close'),
+                    await kpMethods[2][x.method](arr, 'Open', {}),
+                    await kpMethods[3][x.method](arr, 'Close', { intervalSec: 900, keep: 1 }),
+                ]
+                got[x.method] = { seen: [...seen], rs }
+            }
+        }
+        finally {
+            for (let x of EXTRA) {
+                wdt[x.fn] = reals[x.fn]
+            }
+        }
+        for (let x of EXTRA) {
+            assert.strictEqual(wdt[x.fn], reals[x.fn], `替身須已還原: ${x.fn}`)
+            //只呼叫對應之calc(各回不同標記: 接錯函數即可辨), 取傳入之陣列與欄位名(key參數)原樣(第3次呼叫給'Open'); 每根秒數: 給3600為3600、未給為14400、給數字字串'86400'為數值86400、optMethod之intervalSec可覆寫且其餘鍵原樣保留
+            assert.deepStrictEqual(got[x.method].seen, [
+                [x.fn, true, 'Close', { intervalSec: 3600 }],
+                [x.fn, true, 'Close', { intervalSec: 14400 }],
+                [x.fn, true, 'Open', { intervalSec: 86400 }],
+                [x.fn, true, 'Close', { intervalSec: 900, keep: 1 }],
+            ], x.method)
+            assert.deepStrictEqual(got[x.method].rs, [0, 1, 2, 3].map(() => [{ period: `by_${x.fn}`, len: 1, vs: [] }]), `${x.method}之回傳為對應calc之回傳`)
+        }
+    })
+
     it('1hr K線: index側之校正(dataCalibrate)與寫出皆以intervalSec 3600呼叫calc, 單根型態之index key標籤為1hr', async function() {
         this.timeout(120000)
         let { cfg } = cfgOf(fdTmp, 600, { root: path.resolve(fdTmp, 'r11'), interval: '1hr', stepMs: 3600 * 1000 })
@@ -561,6 +635,216 @@ describe('buildParams', function() {
         }
     })
 
+    //動能(momz)、波動延伸(volx)、下跌統計(down)、主動買賣量流(flow)之4個定義: 30個輸出 × 9期 = 270鍵(只在價格側)
+    let nearRel = (a, b, tol) => Math.abs(a - b) <= tol * Math.max(1, Math.abs(b))
+    let avgStd = (xs) => {
+        let m = xs.reduce((a, b) => a + b, 0) / xs.length
+        return { m, s: Math.sqrt(xs.reduce((a, b) => a + (b - m) * (b - m), 0) / (xs.length - 1)) } //樣本標準差(n − 1)
+    }
+
+    it('動能、波動延伸、下跌統計、主動買賣量流之4個定義(price_ohlc_momz、price_ohlc_volx、price_ohlc_down、price_ohlc_flow): 只在價格側; 讀取之K線欄位、輸出欄與method同手寫表; 不給週期表(用calc內建); 預設納入目錄', function() {
+        assert.strictEqual(EXTRA.reduce((s, x) => s + x.outs.length, 0), 30)
+        for (let x of EXTRA) {
+            let def = CATALOG.find((d) => d.id === x.id)
+            assert.ok(def, x.id)
+            assert.deepStrictEqual({ cointpe: def.cointpe, keyKind: def.keyKind, fields: def.fields, keysIn: def.keysIn, funAddKeysIn: def.funAddKeysIn }, { cointpe: 'price', keyKind: 'ohlc', fields: x.fields, keysIn: x.keyIn === 'none' ? [] : [x.keyIn], funAddKeysIn: null }, x.id)
+            assert.deepStrictEqual(def.methods.map((m) => [m.method, m.optMethod, m.deals.map((d) => d.keyOut)]), [[x.method, null, x.outs]], x.id)
+            assert.ok(def.methods.every((m) => m.deals.every((d) => !('keyIn' in d) && !('nm' in d))), `${x.id}: deals只給keyOut`)
+        }
+        assert.ok(!CATALOG.some((d) => d.cointpe === 'index' && d.methods.some((m) => EXTRA.some((x) => x.method === m.method))), '溢價指數側不列')
+    })
+
+    it('前提: 合成K線(900根)各欄之值逐筆相異, 且符合各calc之輸入檢核(Low為正且不大於開收、High不小於開收、0 <= TakerBuyBaseAssetVolume <= Volumn)', function() {
+        let arr = genArrFull(900)
+        for (let col of ['Open', 'High', 'Low', 'Close', 'Volumn', 'TakerBuyBaseAssetVolume']) {
+            assert.strictEqual(new Set(arr.map((v) => v[col])).size, arr.length, `${col}之值須逐筆相異`)
+        }
+        assert.ok(arr.every((v) => v.Low > 0 && v.Low <= Math.min(v.Open, v.Close) && v.High >= Math.max(v.Open, v.Close) && v.TakerBuyBaseAssetVolume >= 0 && v.TakerBuyBaseAssetVolume <= v.Volumn))
+    })
+
+    it('4個新定義(4hr、900根): 鍵集合恰為 輸出 × 9期(標籤 = 根數 × 4hr); 序列 = (w-data-trade原值 − nm.avg) / nm.std; nm.avg與nm.std為nm期間內各期別攤平之平均與樣本標準差', async function() {
+        this.timeout(180000)
+        let { cfg } = cfgFull('ex4', 900)
+        let c = normalizeCfg(cfg)
+        await buildOhlc(c)
+        let r = await buildParams(c, { only: EXTRA_IDS })
+        assert.deepStrictEqual([...r.defs].sort(), [...EXTRA_IDS].sort())
+        assert.strictEqual(r.nKeys, 270)
+        assert.deepStrictEqual([...r.keys].sort(), EXTRA.flatMap((x) => extraKeys(x, EXTRA_LABELS_4HR)).sort())
+        assert.strictEqual(r.nmComputed, 30)
+        let meta = JSON.parse(fs.readFileSync(path.resolve(c.fds.meta, 'params.json'), 'utf8'))
+        assert.deepStrictEqual(Object.keys(meta.nm).sort(), EXTRA.flatMap(extraNm).sort())
+        let ohlc = JSON.parse(fs.readFileSync(path.resolve(c.fds.ohlc, `${c.keyOhlc}.json`), 'utf8'))
+        assert.strictEqual(ohlc.length, 900)
+        for (let x of EXTRA) {
+            //期望值: 直接以w-data-trade之calc對K線序列檔計原值(訓練期 = 全部數據)
+            let raw = await wdt[x.fn](ohlc, 'Close', { intervalSec: 14400 })
+            assert.deepStrictEqual(raw.map((rr) => [rr.period, rr.len]), EXTRA_LABELS_4HR.map((l, i) => [l, EXTRA_LENS[i]]), x.id)
+            x.outs.forEach((o, j) => {
+                let all = raw.flatMap((rr) => rr.vs.map((v) => v[o]))
+                assert.ok(all.length > 0 && all.every((v) => Number.isFinite(v)), `${x.id} ${o}: 原值須皆為有限數`)
+                let { m, s } = avgStd(all)
+                let nm = meta.nm[extraNm(x)[j]]
+                assert.ok(s > 0, `${x.id} ${o}: 前提: 原值之標準差大於0`)
+                assert.ok(nearRel(nm.avg, m, 1e-9), `${x.id} ${o} nm.avg`)
+                assert.ok(nearRel(nm.std, s, 1e-9), `${x.id} ${o} nm.std`)
+                for (let rr of raw) {
+                    assert.ok(rr.vs.length > 0, `${x.id} ${o} ${rr.period}: 前提: 900根下各期皆有值`)
+                    let ser = readParam(c, extraKey(x, o, rr.period))
+                    assert.deepStrictEqual(ser.map((v) => v.time), rr.vs.map((v) => v.time), `${x.id} ${o} ${rr.period} time`)
+                    let bad = ser.findIndex((v, i) => !nearRel(v.param, (rr.vs[i][o] - nm.avg) / nm.std, 1e-9))
+                    assert.strictEqual(bad, -1, `${x.id} ${o} ${rr.period} 第${bad}筆`)
+                }
+            })
+        }
+    })
+
+    it('4個新定義(1day K線 intervalSec 86400): 標籤 = 根數 × 1day; 同一串K線之各序列與4hr逐值相同(根數為本)', async function() {
+        this.timeout(180000)
+        let mk = async (name, ov) => {
+            let { cfg } = cfgFull(name, 900, ov)
+            let c = normalizeCfg(cfg)
+            await buildOhlc(c)
+            let r = await buildParams(c, { only: EXTRA_IDS })
+            return { c, r }
+        }
+        let a = await mk('ex4b', {})
+        let b = await mk('ex1d', { interval: '1day', intervalSec: 86400, stepMs: 86400 * 1000 })
+        assert.strictEqual(b.c.intervalSec, 86400)
+        assert.deepStrictEqual([...b.r.keys].sort(), EXTRA.flatMap((x) => extraKeys(x, EXTRA_LABELS_1DAY)).sort())
+        for (let x of EXTRA) {
+            for (let o of x.outs) {
+                EXTRA_LABELS_4HR.forEach((l4, i) => {
+                    let pa = readParam(a.c, extraKey(x, o, l4)).map((v) => v.param)
+                    let pb = readParam(b.c, extraKey(x, o, EXTRA_LABELS_1DAY[i])).map((v) => v.param)
+                    assert.ok(pa.length > 0, `${o} ${l4}`)
+                    assert.deepStrictEqual(pb, pa, `${x.method} ${o} ${l4}`)
+                })
+            }
+        }
+    })
+
+    it('4個新定義缺欄即剔除並列入dropped(同mfi、cvd): 無Volumn ⇒ down與flow剔除; 無TakerBuyBaseAssetVolume ⇒ 僅flow剔除; 僅有OHLC(股價型)⇒ down與flow剔除而momz、volx留下(buildOhlc要求外部數據恆有Open、High、Low、Close)', async function() {
+        this.timeout(180000)
+        let run = async (name, cols) => {
+            let arrP = genArrFull(400).map((v) => {
+                let o = { ...v }
+                for (let k of cols) {
+                    delete o[k]
+                }
+                return o
+            })
+            let cfg = { root: path.resolve(fdTmp, name), name: 'STK', symbol: 'STK', interval: '4hr', timeZone: 'UTC', timeBegin: arrP[0].time, source: { price: arrP }, train: { timeStart: arrP[0].time, timeEnd: arrP[399].time } }
+            let c = normalizeCfg(cfg)
+            assert.strictEqual(c.useIndex, false)
+            await buildOhlc(c)
+            let r = await buildParams(c, { only: EXTRA_IDS })
+            let reasons = {}
+            for (let d of r.dropped.filter((v) => EXTRA_IDS.includes(v.id))) {
+                reasons[d.id] = d.reason
+            }
+            return { defs: r.defs, reasons }
+        }
+        assert.deepStrictEqual(await run('ex-nov', ['Volumn']), { defs: ['price_ohlc_momz', 'price_ohlc_volx'], reasons: { price_ohlc_down: '數據缺欄位[Volumn]', price_ohlc_flow: '數據缺欄位[Volumn]' } })
+        assert.deepStrictEqual(await run('ex-notb', ['TakerBuyBaseAssetVolume']), { defs: ['price_ohlc_down', 'price_ohlc_momz', 'price_ohlc_volx'], reasons: { price_ohlc_flow: '數據缺欄位[TakerBuyBaseAssetVolume]' } })
+        assert.deepStrictEqual(await run('ex-ohlc', ['Volumn', 'TakerBuyBaseAssetVolume']), { defs: ['price_ohlc_momz', 'price_ohlc_volx'], reasons: { price_ohlc_down: '數據缺欄位[Volumn]', price_ohlc_flow: '數據缺欄位[Volumn,TakerBuyBaseAssetVolume]' } })
+    })
+
+    it('4個新定義對輸入嚴格, 任一根不符即整批reject且buildParams原樣上拋(不只該定義): 0 < TakerBuyBaseAssetVolume <= Volumn被違反 ⇒ flow; Low高於收盤 ⇒ volx; 以opt.exclude排除該定義後其餘照常', async function() {
+        this.timeout(180000)
+        let run = async (name, patch, opt) => {
+            let arrP = genArrFull(400).map((v, i) => (i === 150 ? { ...v, ...patch(v) } : v))
+            let cfg = { root: path.resolve(fdTmp, name), name: 'STK', symbol: 'STK', interval: '4hr', timeZone: 'UTC', timeBegin: arrP[0].time, source: { price: arrP }, train: { timeStart: arrP[0].time, timeEnd: arrP[399].time } }
+            let c = normalizeCfg(cfg)
+            await buildOhlc(c)
+            return buildParams(c, opt)
+        }
+        //TakerBuyBaseAssetVolume大於Volumn(超過1e-9之容差): 只影響flow
+        let bad1 = (v) => ({ TakerBuyBaseAssetVolume: v.Volumn * 1.5 })
+        await assert.rejects(run('ex-bad1a', bad1, { only: EXTRA_IDS }), (e) => /^invalid arr/.test(e.message))
+        await assert.rejects(run('ex-bad1b', bad1, { only: ['price_ohlc_flow'] }), (e) => /^invalid arr/.test(e.message))
+        let r1 = await run('ex-bad1c', bad1, { only: EXTRA_IDS, exclude: ['price_ohlc_flow'] })
+        assert.deepStrictEqual(r1.defs, ['price_ohlc_down', 'price_ohlc_momz', 'price_ohlc_volx'])
+        //Low高於收盤(高低未涵蓋開收): 只影響volx
+        let bad2 = (v) => ({ Low: v.Close + 0.5 })
+        await assert.rejects(run('ex-bad2a', bad2, { only: EXTRA_IDS }), (e) => /^invalid arr/.test(e.message))
+        let r2 = await run('ex-bad2b', bad2, { only: EXTRA_IDS, exclude: ['price_ohlc_volx'] })
+        assert.deepStrictEqual(r2.defs, ['price_ohlc_down', 'price_ohlc_flow', 'price_ohlc_momz'])
+    })
+
+    it('4個新定義預設納入目錄、可由opt.exclude排除: 排除者列入dropped(原因列於opt.exclude)且無其鍵, 未排除者照常; 全算(4hr、400根)排除4者後為既有之890鍵', async function() {
+        this.timeout(180000)
+        let { cfg } = cfgFull('ex-excl', 400)
+        let c = normalizeCfg(cfg)
+        await buildOhlc(c)
+        let methodsOf = (keys) => new Set(keys.map((k) => k.split('_')[4]))
+        let r1 = await buildParams(c, { only: EXTRA_IDS, exclude: ['price_ohlc_volx'] })
+        assert.deepStrictEqual(r1.defs, ['price_ohlc_down', 'price_ohlc_flow', 'price_ohlc_momz'])
+        assert.deepStrictEqual(r1.dropped.filter((d) => EXTRA_IDS.includes(d.id)), [{ id: 'price_ohlc_volx', reason: '列於opt.exclude' }])
+        assert.deepStrictEqual([...methodsOf(r1.keys)].sort(), ['down', 'flow', 'momz'])
+        assert.strictEqual(r1.nKeys, 27 + 108 + 45)
+        let { cfg: cfg2 } = cfgFull('ex-excl2', 400)
+        let c2 = normalizeCfg(cfg2)
+        await buildOhlc(c2)
+        let r2 = await buildParams(c2, { exclude: EXTRA_IDS })
+        assert.deepStrictEqual(r2.dropped, ['price_ohlc_down', 'price_ohlc_flow', 'price_ohlc_momz', 'price_ohlc_volx'].map((id) => ({ id, reason: '列於opt.exclude' })))
+        assert.ok(!r2.keys.some((k) => EXTRA.some((x) => k.split('_')[4] === x.method)))
+        assert.strictEqual(r2.nKeys, 890)
+        assert.strictEqual(r2.defs.length, 35)
+    })
+
+    it('既有工作根之升版: 已凍結nm而未含4個新定義之工作根加入之重跑(不recalibrate) ⇒ 不拋錯; 既有序列檔與nm逐位不變; 新增270檔與30個nm(以凍結之nm期間自算); nmComputed為30; 再跑一次為穩態', async function() {
+        this.timeout(240000)
+        let { cfg, arrP } = cfgFull('exUpg', 900)
+        let c = normalizeCfg(cfg)
+        await buildOhlc(c)
+        let half = { timeStart: c.train.timeStart, timeEnd: arrP[599].time }
+        let only0 = ['price_ohlc_close', 'price_ohlc_rsi', 'index_ohlc_close']
+        let r0 = await buildParams(c, { only: only0, nmPeriod: half }) //nm期間凍結為前段
+        let fpMeta = path.resolve(c.fds.meta, 'params.json')
+        let meta0 = JSON.parse(fs.readFileSync(fpMeta, 'utf8'))
+        let snap0 = r0.keys.map((k) => [k, fs.readFileSync(path.resolve(c.fds.param, `${k}.json`))])
+        let ALL_KEYS = EXTRA.flatMap((x) => extraKeys(x, EXTRA_LABELS_4HR)).sort()
+        assert.ok(snap0.length > 50 && !r0.keys.some((k) => ALL_KEYS.includes(k)))
+        //升版: 加入4個定義(未給nmPeriod、未recalibrate)
+        let r1 = await buildParams(c, { only: [...only0, ...EXTRA_IDS] })
+        let meta1 = JSON.parse(fs.readFileSync(fpMeta, 'utf8'))
+        assert.strictEqual(r1.nmComputed, 30)
+        assert.deepStrictEqual(r1.keys.filter((k) => !ALL_KEYS.includes(k)), r0.keys)
+        assert.deepStrictEqual(r1.keys.filter((k) => ALL_KEYS.includes(k)).sort(), ALL_KEYS)
+        for (let [k, buf] of snap0) {
+            assert.ok(fs.readFileSync(path.resolve(c.fds.param, `${k}.json`)).equals(buf), `既有序列檔逐位不變: ${k}`)
+        }
+        for (let [k, v] of Object.entries(meta0.nm)) {
+            assert.deepStrictEqual(meta1.nm[k], v, `既有nm不變: ${k}`)
+        }
+        let NM_NEW = EXTRA.flatMap(extraNm)
+        assert.deepStrictEqual(Object.keys(meta1.nm).filter((k) => !(k in meta0.nm)).sort(), [...NM_NEW].sort())
+        assert.deepStrictEqual(meta1.nmPeriod, half)
+        assert.deepStrictEqual(meta1.optMethod, meta0.optMethod)
+        //新nm以凍結之nm期間(前段)自算: 同另一工作根以nmPeriod: half全新建立者; 鑑別前提: 前段與全期之nm不同
+        let fresh = async (name, nmPeriod) => {
+            let { cfg: cfg2 } = cfgFull(name, 900)
+            let c2 = normalizeCfg(cfg2)
+            await buildOhlc(c2)
+            await buildParams(c2, { only: EXTRA_IDS, nmPeriod })
+            return JSON.parse(fs.readFileSync(path.resolve(c2.fds.meta, 'params.json'), 'utf8')).nm
+        }
+        let nmHalf = await fresh('exHalf', half)
+        let nmFull = await fresh('exFull', undefined)
+        for (let k of NM_NEW) {
+            assert.deepStrictEqual(meta1.nm[k], nmHalf[k], k)
+        }
+        assert.ok(NM_NEW.some((k) => meta1.nm[k].avg !== nmFull[k].avg), '鑑別前提: 前段與全期之nm須不同')
+        //再跑一次(穩態): nmComputed 0, 全部序列檔不變
+        let snap1 = r1.keys.map((k) => [k, fs.readFileSync(path.resolve(c.fds.param, `${k}.json`))])
+        let r2 = await buildParams(c, { only: [...only0, ...EXTRA_IDS] })
+        assert.strictEqual(r2.nmComputed, 0)
+        for (let [k, buf] of snap1) {
+            assert.ok(fs.readFileSync(path.resolve(c.fds.param, `${k}.json`)).equals(buf), `穩態: ${k}`)
+        }
+    })
+
     describe('nm之取法(opt.nmScope、opt.nmStat)', function() {
 
         //訊息依跨套件規格〈輸入參數之檢測機制〉V19(invalid <名稱>: must …)、V20(不回顯輸入值)與S3(列舉類寫允許之集合 one of …); meta內凍結值無效屬工作根之狀態, 名稱為cfg.root(同src/util/basis.mjs之作法)
@@ -696,15 +980,23 @@ describe('buildParams', function() {
             }
         })
 
+        //OLD_DEFS, 快照所依之內建目錄(1.0.39 時之 35 個定義): 其後目錄增加之 4 個定義(動能、波動延伸、下跌統計、主動買賣量流)不在內, 否則 dropped 與全目錄案之檔數必變而快照失其對照; 新增之定義另以各自之案守住(見上)
+        let OLD_DEFS = CATALOG.filter((d) => !EXTRA_IDS.includes(d.id))
+
         describe('預設(未給或給預設值)與1.0.39逐位元組相同', function() {
+
+            it('前提: 快照所依之目錄為去掉4個新定義之35個定義', function() {
+                assert.strictEqual(OLD_DEFS.length, 35)
+                assert.ok(OLD_DEFS.some((d) => d.id === 'price_ohlc_dirchange') && !OLD_DEFS.some((d) => EXTRA_IDS.includes(d.id)))
+            })
 
             for (let id of Object.keys(SCENARIOS)) {
                 for (let [tag, extra] of [['未給', {}], ['給預設值', { nmScope: 'key', nmStat: 'meanStd' }], ['給null與undefined', { nmScope: null, nmStat: undefined }]]) {
-                    it(`對拍快照[${id}、${tag}]: param/整夾、meta/params.json(遮蔽at)與回傳值(去除nmScope與nmStat)皆同改動前`, async function() {
+                    it(`對拍快照[${id}、${tag}]: param/整夾、meta/params.json(遮蔽at)與回傳值(去除nmScope與nmStat)皆同改動前(目錄為OLD_DEFS)`, async function() {
                         this.timeout(180000)
                         let fd = path.resolve(fdTmp, `bp-${id}-${tag.length}-${Math.random().toString(36).slice(2, 6)}`)
                         fs.mkdirSync(fd, { recursive: true })
-                        let outs = await runScenario({ normalizeCfg, buildOhlc, buildParams, cfgOf }, fd, id, extra)
+                        let outs = await runScenario({ normalizeCfg, buildOhlc, buildParams, cfgOf }, fd, id, { defs: OLD_DEFS, ...extra })
                         assert.deepStrictEqual(outs, SNAP_BP[id])
                     })
                 }

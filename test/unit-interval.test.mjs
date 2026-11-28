@@ -19,7 +19,7 @@ import { buildFdTmp, cfgOf } from './tools/synthKit.mjs'
 //  時間口徑: cfg.timeBasis('open'/'span')與intervalSec一致地轉傳至每一處呼叫回測或求解者 —— 普測兩核心(策略settings與calcOrdersSummarySimple之opt)、求解(estimFinder之opt ⇒ 策略settings; 加速核心與存檔前官方重跑皆讀strategy.settings)、
 //    策略庫重算(目標口徑); 未給 ≡ 現行; 接縫不用替身(以真實回測套件之輸出驗證)
 //  求解新選項: thsCond、levelNumTradeBounds放行並轉傳; 重算以檔內之級距設定組檔名
-//  根數為本: 同一串K線以4hr與1day計, 鍵數相同(內建目錄全算890 = 依根數之期別874 + 方向改變法之門檻鍵16)、期別標籤依「根數 × 每根時長」對應(方向改變法之門檻標籤`${門檻}pct`不隨週期改變)、各序列值逐值相同
+//  根數為本: 同一串K線以4hr與1day計, 鍵數相同(內建目錄全算1160 = 依根數之期別874 + 方向改變法之門檻鍵16 + 動能、波動延伸、下跌統計、主動買賣量流之期別鍵270)、期別標籤依「根數 × 每根時長」對應(方向改變法之門檻標籤`${門檻}pct`不隨週期改變)、各序列值逐值相同
 //  驗證之鑑別: 日線之訓練窗為首根至末根(n根), 'open'之回測天數 = n − 1, 'span' = n(計至末根收盤)
 
 
@@ -290,7 +290,7 @@ describe('interval(每根時長、時間口徑與求解新選項之接線)', fun
         assert.deepStrictEqual(JSON.parse(fs.readFileSync(fpBasis, 'utf8')).solve.thsCond, [0.5, 1, 1.5])
     })
 
-    it('根數為本(端到端): 同一串K線以4hr與1day計, 內建目錄全算之鍵數同為890(874 + 方向改變法16)、標籤依根數 × 每根時長一一對應(門檻標籤不變)、各序列逐值相同', async function() {
+    it('根數為本(端到端): 同一串K線以4hr與1day計, 內建目錄全算之鍵數同為1160(874 + 方向改變法16 + 動能、波動延伸、下跌統計、主動買賣量流270)、標籤依根數 × 每根時長一一對應(門檻標籤不變)、各序列逐值相同', async function() {
         this.timeout(180000)
         let mk = async (name, interval, stepMs) => {
             let { cfg } = cfgOf(fdTmp, 400, { root: path.resolve(fdTmp, name), interval, stepMs })
@@ -301,8 +301,16 @@ describe('interval(每根時長、時間口徑與求解新選項之接線)', fun
         }
         let a = await mk('e2e4', '4hr', 4 * 3600 * 1000)
         let b = await mk('e2e1d', '1day', DAY)
-        assert.strictEqual(a.r.nKeys, 890)
-        assert.strictEqual(b.r.nKeys, 890)
+        assert.strictEqual(a.r.nKeys, 1160)
+        assert.strictEqual(b.r.nKeys, 1160)
+        //動能(momz)、波動延伸(volx)、下跌統計(down)、主動買賣量流(flow): 預設納入; 各為 輸出 × 9期 = 45、90、27、108鍵, 期別標籤 = 根數(3、4、5、6、12、24、42、90、180) × 每根時長
+        let labelsOf = (keys, method) => [...new Set(keys.filter((k) => k.split('_')[4] === method).map((k) => k.split('_')[5]))]
+        for (let [method, nKeys] of [['momz', 45], ['volx', 90], ['down', 27], ['flow', 108]]) {
+            assert.strictEqual(a.r.keys.filter((k) => k.split('_')[4] === method).length, nKeys, method)
+            assert.strictEqual(b.r.keys.filter((k) => k.split('_')[4] === method).length, nKeys, method)
+            assert.deepStrictEqual(labelsOf(a.r.keys, method).sort(), ['12hr', '16hr', '20hr', '1day', '2day', '4day', '7day', '15day', '30day'].sort(), method)
+            assert.deepStrictEqual(labelsOf(b.r.keys, method).sort(), ['3day', '4day', '5day', '6day', '12day', '24day', '42day', '90day', '180day'].sort(), method)
+        }
         let keysB = new Set(b.r.keys)
         let reDir = /^price_ohlc_none_(dirState|dirRetrace|dirRun|dirAge)_dirChange_(4|6|8|10)pct$/
         assert.strictEqual(a.r.keys.filter((k) => reDir.test(k)).length, 16)
@@ -327,7 +335,7 @@ describe('interval(每根時長、時間口徑與求解新選項之接線)', fun
             assert.deepStrictEqual(v1.map((x) => x.param), v4.map((x) => x.param), k4)
             nCmp++
         }
-        assert.strictEqual(nCmp, 890)
+        assert.strictEqual(nCmp, 1160)
         assert.strictEqual(nDir, 16)
         assert.ok(b.r.keys.some((k) => k.endsWith('_180day')))
     })

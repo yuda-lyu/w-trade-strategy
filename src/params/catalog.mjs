@@ -1,4 +1,4 @@
-//內建參數(因子)目錄: 由使用端既有管線之 34 個參數定義抽提(另增方向改變法 price_ohlc_dirchange, 共 35 個), 去除幣種專屬之 nm(avg/std, 改由 buildParams 依指定期間自算並凍結於 meta)
+//內建參數(因子)目錄: 由使用端既有管線之 34 個參數定義抽提(另增方向改變法 price_ohlc_dirchange 與價格側之 price_ohlc_momz、price_ohlc_volx、price_ohlc_down、price_ohlc_flow, 共 39 個), 去除幣種專屬之 nm(avg/std, 改由 buildParams 依指定期間自算並凍結於 meta)
 //  各定義: { id, cointpe('price'|'index'), keyKind('ohlc'|'vbs'), fields(計算實際存取之 K 線欄位; 數據缺任一欄即整個定義跳過), keysIn(取值類之來源欄位; 空陣列代表 'none'),
 //           funAddKeysIn(逐筆擴增欄位之函數, 僅 vbs 用), methods: [{ method, optMethod(index 側之偏移參數, 為校正起點; null=無), deals: [{ keyIn?, keyOut }] }] }
 //  key 命名由 w-data-trade dataConvert 決定: `${cointpe}_${keyKind}_${keyIn||'none'}_${keyOut}_${method}_${period}`
@@ -37,7 +37,7 @@ let funAddKeysInVbs = (v) => {
 
 
 /**
- * 內建參數(因子)定義目錄(35個定義、140個輸出；price 21、index 14)，各定義格式見檔頭
+ * 內建參數(因子)定義目錄(39個定義、170個輸出；price 25、index 14)，各定義格式見檔頭
  *
  * @type {Array}
  */
@@ -477,6 +477,54 @@ let CATALOG = [
         ],
     },
     {
+        //下跌之統計(w-data-trade calcDown): 以keyIn欄位(Close)取對數報酬並讀Volumn; 收跌根數比例、收跌根之量占比、暴跌根數; 週期表用calc內建者(根數3、4、5、6、12、24、42、90、180; 期別標籤依每根秒數換算)
+        //  keysIn為['Close']: calcDown以其key參數(= dataConvert傳入之keyIn)為取值欄位名, 'none'即讀不到欄位而整批reject(不同於rsi等不讀key者); 輸出key之keyIn段為Close
+        //  只列價格側: 溢價指數之值可為0或負, 取對數無意義, 且無成交量欄
+        id: 'price_ohlc_down',
+        cointpe: 'price',
+        keyKind: 'ohlc',
+        fields: ['Close', 'Volumn'],
+        keysIn: ['Close'],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'down',
+                optMethod: null,
+                deals: [{ keyOut: 'downBars' }, { keyOut: 'downVol' }, { keyOut: 'crashN' }],
+            },
+        ],
+    },
+    {
+        //主動買賣量之水準、速度與加速度(w-data-trade calcFlow): 讀Volumn與TakerBuyBaseAssetVolume; buy、sell、net、share各取L(水準)、V(速度)、A(加速度)共12欄; 週期表同上
+        //  只列價格側: 溢價指數無成交量欄
+        id: 'price_ohlc_flow',
+        cointpe: 'price',
+        keyKind: 'ohlc',
+        fields: ['Volumn', 'TakerBuyBaseAssetVolume'],
+        keysIn: [],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'flow',
+                optMethod: null,
+                deals: [
+                    { keyOut: 'buyL' },
+                    { keyOut: 'buyV' },
+                    { keyOut: 'buyA' },
+                    { keyOut: 'sellL' },
+                    { keyOut: 'sellV' },
+                    { keyOut: 'sellA' },
+                    { keyOut: 'netL' },
+                    { keyOut: 'netV' },
+                    { keyOut: 'netA' },
+                    { keyOut: 'shareL' },
+                    { keyOut: 'shareV' },
+                    { keyOut: 'shareA' },
+                ],
+            },
+        ],
+    },
+    {
         id: 'price_ohlc_ichimoku',
         cointpe: 'price',
         keyKind: 'ohlc',
@@ -579,6 +627,30 @@ let CATALOG = [
         ],
     },
     {
+        //波動標準化之動能(w-data-trade calcMomz): 以keyIn欄位(Close)取對數報酬(須為正數); 以波動(近30根對數報酬之母體標準差)為單位之動能、速度、加速度、已漲之幅與效率比; 週期表用calc內建者(根數3、4、5、6、12、24、42、90、180; 期別標籤依每根秒數換算)
+        //  keysIn為['Close']: calcMomz以其key參數(= dataConvert傳入之keyIn)為取值欄位名, 'none'即讀不到欄位而整批reject(不同於rsi等不讀key者); 輸出key之keyIn段為Close
+        //  只列價格側: 溢價指數之值可為0或負, 取對數無意義
+        id: 'price_ohlc_momz',
+        cointpe: 'price',
+        keyKind: 'ohlc',
+        fields: ['Close'],
+        keysIn: ['Close'],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'momz',
+                optMethod: null,
+                deals: [
+                    { keyOut: 'momZ' },
+                    { keyOut: 'vel' },
+                    { keyOut: 'acc' },
+                    { keyOut: 'ext' },
+                    { keyOut: 'er' },
+                ],
+            },
+        ],
+    },
+    {
         id: 'price_ohlc_obv',
         cointpe: 'price',
         keyKind: 'ohlc',
@@ -626,6 +698,34 @@ let CATALOG = [
                 method: 'supertrend',
                 optMethod: null,
                 deals: [{ keyOut: 'stDistance' }],
+            },
+        ],
+    },
+    {
+        //波動之延伸(w-data-trade calcVolx): 讀Open、High、Low、Close(須為正數且High、Low涵蓋開收); 已實現波動與高低開收估計之波動(對數)、短長期之比、Choppiness、下行占比、跳躍占比、變異數比、波動之波動; 週期表用calc內建者(根數3、4、5、6、12、24、42、90、180; 期別標籤依每根秒數換算)
+        //  只列價格側: 溢價指數之值可為0或負, 取對數無意義
+        id: 'price_ohlc_volx',
+        cointpe: 'price',
+        keyKind: 'ohlc',
+        fields: ['Open', 'High', 'Low', 'Close'],
+        keysIn: [],
+        funAddKeysIn: null,
+        methods: [
+            {
+                method: 'volx',
+                optMethod: null,
+                deals: [
+                    { keyOut: 'rv' },
+                    { keyOut: 'park' },
+                    { keyOut: 'gk' },
+                    { keyOut: 'rs' },
+                    { keyOut: 'rvRatio' },
+                    { keyOut: 'chop' },
+                    { keyOut: 'downShare' },
+                    { keyOut: 'jumpShare' },
+                    { keyOut: 'varRatio' },
+                    { keyOut: 'volOfVol' },
+                ],
             },
         ],
     },

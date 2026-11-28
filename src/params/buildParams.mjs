@@ -22,7 +22,7 @@ import { checkBasis, commitBasis } from '../util/basis.mjs'
 /**
  * 建立method名稱對應計算函數之映射(供w-data-trade dataConvert與dataCalibrate呼叫)
  *
- * 內建method為w-data-trade之各calc(取值類orig、ma、maNorm、ema、emaNorm、vec、vecNorm與指標類kdj、macd、vortex、rsi、klr、atr、bbpb、obv、mfi、adx、donchian、supertrend、keltner、vwap、cvd、ats、ichimoku、candle、dirChange)；dirChange(方向改變法calcDirChange)之表為門檻百分比(期別段`${門檻}pct`)，intervalSec只檢核、不換算其標籤
+ * 內建method為w-data-trade之各calc(取值類orig、ma、maNorm、ema、emaNorm、vec、vecNorm與指標類kdj、macd、vortex、rsi、klr、atr、bbpb、obv、mfi、adx、donchian、supertrend、keltner、vwap、cvd、ats、ichimoku、candle、dirChange、momz、volx、down、flow)；dirChange(方向改變法calcDirChange)之表為門檻百分比(期別段`${門檻}pct`)，intervalSec只檢核、不換算其標籤；momz、volx、down、flow(calcMomz波動標準化之動能、calcVolx波動之延伸、calcDown下跌之統計、calcFlow主動買賣量之水準與速度，w-data-trade >= 1.0.67)用各calc內建之週期表(根數3、4、5、6、12、24、42、90、180)，期別標籤依intervalSec換算(根數 × 每根秒數，同ma、rsi等)
  * 每次呼叫皆把intervalSec(每根K線之秒數)併入傳給calc之opt(w-data-trade >= 1.0.50，根數為本)：各calc內建週期表之值為根數，不隨K線週期改變，期別標籤(即輸出key之period)= 根數 × intervalSec(4hr為14400即與內建標籤相同)；呼叫端給之optMethod(index側偏移參數等)原樣保留，其內之intervalSec可覆寫
  * calcs可擴充或覆寫method，函數簽章(arr, keyIn, optMethod) => rrs，rrs為各期[{period, len, vs: [{time, ...keyOuts}]}]
  * intervalSec依w-data-trade之chkIntervalSec檢核(60之正整數倍且至多31536000，數值或數字字串，轉為數值)，給了而無效即throw `invalid opt.intervalSec: must be a positive integer multiple of 60 up to 31536000`，null與未給取預設14400；已移除之舊選項barsPerDay視為未知鍵，不收
@@ -36,7 +36,7 @@ import { checkBasis, commitBasis } from '../util/basis.mjs'
  *
  * let kp = buildKp({ myCalc: async (arr, keyIn, optMethod) => [{ period: '1bar', len: 1, vs: [] }] }, { intervalSec: 3600 })
  * console.log(Object.keys(kp).length, typeof kp.rsi, typeof kp.myCalc)
- * // => 27 function function
+ * // => 31 function function
  *
  */
 let buildKp = (calcs = {}, opt = {}) => {
@@ -70,6 +70,10 @@ let buildKp = (calcs = {}, opt = {}) => {
         ichimoku: (arr, key, opt2 = {}) => wdt.calcIchimoku(arr, key, o(opt2)),
         candle: (arr, key, opt2 = {}) => wdt.calcCandle(arr, key, o(opt2)),
         dirChange: (arr, key, opt2 = {}) => wdt.calcDirChange(arr, key, o(opt2)),
+        momz: (arr, key, opt2 = {}) => wdt.calcMomz(arr, key, o(opt2)),
+        volx: (arr, key, opt2 = {}) => wdt.calcVolx(arr, key, o(opt2)),
+        down: (arr, key, opt2 = {}) => wdt.calcDown(arr, key, o(opt2)),
+        flow: (arr, key, opt2 = {}) => wdt.calcFlow(arr, key, o(opt2)),
     }
     if (iseobj(calcs)) {
         for (let k of Object.keys(calcs)) {
@@ -376,7 +380,7 @@ let nmByPeriodOf = (periods, nmStat) => {
 /**
  * 由K線序列計算指標參數(因子)序列並儲存至cfg.fds.param
  *
- * 參數定義預設為內建目錄(抽自使用端既有管線之34個定義，另增方向改變法，共35個定義、140個輸出)，可由opt.defs整組替換或opt.extraDefs追加，定義格式見src/params/catalog.mjs
+ * 參數定義預設為內建目錄(抽自使用端既有管線之34個定義，另增方向改變法與價格側之波動標準化動能、波動延伸、下跌統計、主動買賣量流共5個定義，共39個定義、170個輸出)，可由opt.defs整組替換或opt.extraDefs追加，定義格式見src/params/catalog.mjs
  * 各定義經三道過濾: cfg.useIndex為false時剔除cointpe為'index'者；數據缺少定義fields任一欄位者剔除(供僅有OHLC之股價等數據)；opt.only/opt.exclude依id取捨
  * z-score正規化之nm(avg,std)依opt.nmPeriod(預設訓練期)由數據自算並凍結於cfg.fds.meta/params.json，之後重算參數時沿用凍結值(數據延長不致使既有策略之門檻失真)；opt.recalibrate為true時重算
  * nm之取法有二軸(皆選配，預設即現行): opt.nmScope為'key'(預設)時同一輸出欄(`${id}|${method}|${keyIn}|${keyOut}`)之各期別共用一組nm，為'period'時另依各期別各自算一組(meta.nm[鍵] = {avg,std,byPeriod:{期別標籤:{avg,std}}}，頂層為各期別攤平之值，供無對應期別時沿用；byPeriod只收有效值至少50筆(固定下限，不設選項)且尺度大於0之期別，其餘期別沿用頂層；於本套件外自行以meta.nm正規化新數據者須依期別取byPeriod，只讀頂層會與寫出之序列不一致)；opt.nmStat為'meanStd'(預設)時取平均與標準差，為'medianIqr'時取中位數與(q75 − q25) ÷ 1.349(尺度不可用者先退回平均與標準差，仍不行為{avg:0,std:1})，後者對重尾較穩健
