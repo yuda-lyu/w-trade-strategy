@@ -9,8 +9,9 @@ import buildParams, { buildKp, nmKeyOf, resolveNmOpt, nmOfStat, nmByPeriodOf } f
 import CATALOG from '../src/params/catalog.mjs'
 import wdt from 'w-data-trade/src/WDataTrade.mjs'
 import periodInfo from 'w-data-trade/src/periodInfo.mjs'
-import { buildFdTmp, cfgOf, genArrPrice } from './tools/synthKit.mjs'
+import { buildFdTmp, cfgOf, genArrPrice, genTimes } from './tools/synthKit.mjs'
 import { SCENARIOS, runScenario } from './tools/bpParity.mjs'
+import { quickDetOf } from './tools/solveDet.mjs'
 
 
 //規格來源: src/params/buildParams.mjs、src/params/catalog.mjs
@@ -23,7 +24,8 @@ import { SCENARIOS, runScenario } from './tools/bpParity.mjs'
 //    單根型態(candle)之標籤為該週期本身(1hr、1day)
 //    標籤規則: 時間跨度為整日數者寫Nday, 否則整小時數者寫Nhr; 第1筆輸出於第 根數 根(索引 根數-1)
 //  過濾: useIndex false剔除index定義; 數據缺fields欄位者剔除; only/exclude
-//  nm由nmPeriod(預設train)自算並凍結於meta/params.json, 再次呼叫沿用; recalibrate重算
+//  nm由nmPeriod(預設train)自算並凍結於meta/params.json, 再次呼叫沿用; recalibrate重算; 指標以全部K線計算而只取nm期間內之值統計(index側校正同口徑; 見〈nm之統計窗〉)
+//  無任何值之期不留序列檔(param/內之空陣列json檔於寫出後移除, 有移除時記於meta.emptyKeys與回傳; 見〈空序列檔之移除〉)
 //  nm之取法(opt.nmScope: 'key'為同一輸出欄各期別共用一組(預設)、'period'為各期別各自一組; opt.nmStat: 'meanStd'為平均與標準差(預設)、'medianIqr'為中位數與(q75 − q25) ÷ 1.349): 兩者皆為預設時與1.0.39逐位元組相同(meta/params.json不含此二欄); 非預設時凍結於meta.nmScope與meta.nmStat, byPeriod只收n(該期別於nm期間內之有效值個數)至少50(固定下限, 不設選項)且尺度大於0之期別, 其餘沿用鍵層; 已凍結者沿用(須recalibrate才改); 給了而無效即throw固定訊息(不含輸入值, 先於任何建夾與寫檔); meta內凍結之值無效亦throw固定訊息; 鍵層尺度不可用時之警告log寫實際採用之avg與std
 //  index側optMethod校正結果凍結於meta.optMethod
 //  extraDefs+calcs可擴充自訂method; series直接寫入
@@ -782,7 +784,10 @@ describe('buildParams', function() {
         assert.deepStrictEqual(r1.defs, ['price_ohlc_down', 'price_ohlc_flow', 'price_ohlc_momz'])
         assert.deepStrictEqual(r1.dropped.filter((d) => EXTRA_IDS.includes(d.id)), [{ id: 'price_ohlc_volx', reason: '列於opt.exclude' }])
         assert.deepStrictEqual([...methodsOf(r1.keys)].sort(), ['down', 'flow', 'momz'])
-        assert.strictEqual(r1.nKeys, 27 + 108 + 45)
+        //400根下flow根數180之期(30day, 需570根)無值: 該12鍵不寫出、不列入keys(TS-33)
+        assert.strictEqual(r1.emptyKeys.length, 12)
+        assert.ok(r1.emptyKeys.every((k) => k.includes('_flow_') && k.endsWith('_30day')))
+        assert.strictEqual(r1.nKeys, 27 + 108 + 45 - 12)
         let { cfg: cfg2 } = cfgFull('ex-excl2', 400)
         let c2 = normalizeCfg(cfg2)
         await buildOhlc(c2)
@@ -1568,6 +1573,478 @@ describe('buildParams', function() {
                 }
             })
 
+        })
+
+    })
+
+    //nm之統計窗(規則帳本TS-32): 指標一律以全部K線計算(同寫出之序列, 起點為資料起點), 正規化常數只取nm期間(含頭含尾)內之值統計(依nmScope、nmStat), 故寫出之序列於nm期間內依nmStat之定義即中心0、尺度1; index側校正同口徑; 不設選項; 已凍結之nm不recalibrate時沿用
+    //  下列各案之nm期間不自資料起點(舊口徑「切到nm期間後重算指標」與本口徑只在窗前有歷史時有差)
+    describe('nm之統計窗(指標以全部K線計算, 常數只取nm期間內之值)', function() {
+
+        let N = 600
+        let I1 = 250 //nm期間首根之索引(含)
+        let I2 = 449 //nm期間末根之索引(含)
+        let LENS = [1, 60, 120] //自訂method之各期根數
+        let T0 = Date.UTC(2023, 0, 1)
+
+        //calcWin, 合成之自訂method: C為自資料起點之累積量(值依資料起點); R為len根滾動平均(前len − 1根無值; 值不依起點)另加依絕對時刻之趨勢項(期內與期外之值分布不同)
+        let calcWin = async (arr) => LENS.map((len) => {
+            let cum = 0
+            let sum = 0
+            let vs = []
+            for (let i = 0; i < arr.length; i++) {
+                cum += (arr[i].Close - 100) * len + arr[i].Volumn * 0.001
+                sum += arr[i].Close
+                if (i >= len) {
+                    sum -= arr[i - len].Close
+                }
+                if (i >= len - 1) {
+                    let g = (Date.parse(`${arr[i].time}Z`) - T0) / (4 * 3600 * 1000)
+                    vs.push({ time: arr[i].time, C: cum, R: len * (sum / len + g * 0.05) })
+                }
+            }
+            return { period: `p${len}`, len, vs }
+        })
+        let defW = (id = 'price_ohlc_myw', method = 'myw') => ({ id, cointpe: 'price', keyKind: 'ohlc', fields: ['Close', 'Volumn'], keysIn: [], methods: [{ method, deals: [{ keyOut: 'C' }, { keyOut: 'R' }] }] })
+        let nkW = (keyOut, id = 'price_ohlc_myw', method = 'myw') => nmKeyOf({ id }, method, 'none', keyOut)
+
+        //brute, 另寫之暴力統計(不與src共用程式): avg、樣本std(n − 1)、第7型分位數
+        let brute = (xs) => {
+            let n = xs.length
+            let s = [...xs].sort((a, b) => a - b)
+            let q = (p) => {
+                let pos = (n - 1) * p
+                let lo = Math.floor(pos)
+                return s[lo] + (pos - lo) * (s[Math.ceil(pos)] - s[lo])
+            }
+            let avg = xs.reduce((a, b) => a + b, 0) / n
+            let std = Math.sqrt(xs.reduce((a, b) => a + (b - avg) * (b - avg), 0) / (n - 1))
+            return { avg, std, median: q(0.5), iqr: q(0.75) - q(0.25) }
+        }
+        //nmDef, 依nmStat之定義取中心與尺度(規則帳本TS-30; 'medianIqr'之尺度不可用者退回平均與標準差)
+        let nmDef = (xs, nmStat) => {
+            let b = brute(xs)
+            if (nmStat === 'medianIqr' && b.iqr / 1.349 > 0) {
+                return { avg: b.median, std: b.iqr / 1.349 }
+            }
+            return { avg: b.avg, std: b.std }
+        }
+        let near = (a, b, tol = 1e-9) => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= tol * Math.max(1, Math.abs(b))
+        let readMeta = (c) => JSON.parse(fs.readFileSync(path.resolve(c.fds.meta, 'params.json'), 'utf8'))
+        let readMetaMask = (c) => fs.readFileSync(path.resolve(c.fds.meta, 'params.json'), 'utf8').replace(/"at":\s*"[^"]*"/, '"at":"MASK"')
+        let readOhlc = (c) => JSON.parse(fs.readFileSync(path.resolve(c.fds.ohlc, `${c.keyOhlc}.json`), 'utf8'))
+        let readSer = (c, key) => JSON.parse(fs.readFileSync(path.resolve(c.fds.param, `${key}.json`), 'utf8'))
+        let bytesOf = (c) => {
+            let o = {}
+            for (let fn of fs.readdirSync(c.fds.param).sort()) {
+                o[fn] = createHash('sha256').update(fs.readFileSync(path.resolve(c.fds.param, fn))).digest('hex')
+            }
+            return o
+        }
+        let mkRoot = async (name) => {
+            let { cfg } = cfgOf(fdTmp, N, { root: path.resolve(fdTmp, name) })
+            let c = normalizeCfg(cfg)
+            await buildOhlc(c)
+            let ohlc = readOhlc(c)
+            return { c, ohlc, win: { timeStart: ohlc[I1].time, timeEnd: ohlc[I2].time } }
+        }
+        //rawIn, 以全部K線(或給定之K線)計原值後取win(含頭含尾; null為不取)內之值: { p1: [x, ...], ... }
+        let rawIn = async (arr, keyOut, win) => {
+            let o = {}
+            for (let rr of await calcWin(arr)) {
+                o[rr.period] = rr.vs.filter((v) => win === null || (v.time >= win.timeStart && v.time <= win.timeEnd)).map((v) => v[keyOut])
+            }
+            return o
+        }
+        let pooled = (raw) => Object.values(raw).flat()
+        let optW = (extra) => ({ defs: [defW()], calcs: { myw: calcWin }, ...extra })
+
+        it('前提: nm期間之首末根皆非資料之首末根; 各期於期間內恰200筆; 舊口徑(切到期間後重算)與本口徑之常數於C與R皆相差逾1%(鑑別力); 取窗外之值入統計亦不同', async function() {
+            let { ohlc, win } = await mkRoot('win-premise')
+            assert.ok(I1 > 0 && I2 < N - 1)
+            for (let keyOut of ['C', 'R']) {
+                let neu = await rawIn(ohlc, keyOut, win)
+                assert.deepStrictEqual(Object.values(neu).map((v) => v.length), [200, 200, 200])
+                let old = await rawIn(ohlc.slice(I1, I2 + 1), keyOut, null)
+                let all = await rawIn(ohlc, keyOut, null)
+                let a = nmDef(pooled(neu), 'meanStd')
+                for (let [tag, other] of [['old', old], ['all', all]]) {
+                    let b = nmDef(pooled(other), 'meanStd')
+                    assert.ok(Math.abs(a.avg - b.avg) / a.std > 0.01 || Math.abs(b.std / a.std - 1) > 0.01, `${keyOut} ${tag}`)
+                }
+            }
+            assert.ok((await rawIn(ohlc.slice(I1, I2 + 1), 'R', null)).p120.length < 200, '舊口徑之長期別缺窗首之暖機段')
+        })
+
+        for (let nmScope of ['key', 'period']) {
+            for (let nmStat of ['meanStd', 'medianIqr']) {
+                it(`${nmScope} + ${nmStat}: nm = 全部K線之原值於nm期間(含頭含尾)內之統計; 寫出之序列以全部K線計算, 於期間內依${nmStat}之定義中心0、尺度1`, async function() {
+                    this.timeout(120000)
+                    let { c, ohlc, win } = await mkRoot(`win-${nmScope}-${nmStat}`)
+                    await buildParams(c, optW({ nmPeriod: win, nmScope, nmStat }))
+                    let meta = readMeta(c)
+                    for (let keyOut of ['C', 'R']) {
+                        let nm = meta.nm[nkW(keyOut)]
+                        let neu = await rawIn(ohlc, keyOut, win)
+                        let full = await rawIn(ohlc, keyOut, null)
+                        let exp = nmDef(pooled(neu), nmStat)
+                        assert.ok(near(nm.avg, exp.avg) && near(nm.std, exp.std), `${keyOut} 鍵層`)
+                        let zs = {}
+                        for (let len of LENS) {
+                            let p = `p${len}`
+                            let ser = readSer(c, `price_ohlc_none_${keyOut}_myw_${p}`)
+                            assert.strictEqual(ser.length, N - len + 1, `${keyOut} ${p}: 序列以全部K線寫出`)
+                            let use = nm
+                            if (nmScope === 'period') {
+                                use = nm.byPeriod[p]
+                                let e = nmDef(neu[p], nmStat)
+                                assert.ok(near(use.avg, e.avg) && near(use.std, e.std), `${keyOut} ${p}: 期別層`)
+                            }
+                            assert.ok(ser.every((v, i) => near(v.param, (full[p][i] - use.avg) / use.std)), `${keyOut} ${p}: 序列 = (全部K線之原值 − 中心) ÷ 尺度`)
+                            zs[p] = ser.filter((v) => v.time >= win.timeStart && v.time <= win.timeEnd).map((v) => v.param)
+                        }
+                        let groups = nmScope === 'period' ? Object.values(zs) : [pooled(zs)] //常數所涵蓋之母體
+                        for (let z of groups) {
+                            let s = nmDef(z, nmStat)
+                            assert.ok(Math.abs(s.avg) <= 1e-9 && Math.abs(s.std - 1) <= 1e-9, `${keyOut}: 期間內之中心${s.avg}、尺度${s.std}`)
+                        }
+                    }
+                })
+            }
+        }
+
+        it('內建指標(OBV、ADX、均線類、動能〔含暖機與依起點者〕、index側取值類): nm期間在資料中段時, 各常數所涵蓋母體之寫出序列於期間內中心0、尺度1(key與period)', async function() {
+            this.timeout(180000)
+            let only = ['price_ohlc_obv', 'price_ohlc_adx', 'price_ohlc_close', 'price_ohlc_momz', 'index_ohlc_close']
+            for (let nmScope of ['key', 'period']) {
+                let { cfg } = cfgOf(fdTmp, 900, { root: path.resolve(fdTmp, `win-cat-${nmScope}`) })
+                let c = normalizeCfg(cfg)
+                await buildOhlc(c)
+                let ohlc = readOhlc(c)
+                let win = { timeStart: ohlc[400].time, timeEnd: ohlc[699].time }
+                let r = await buildParams(c, { only, nmPeriod: win, nmScope })
+                let meta = readMeta(c)
+                let nGroup = 0
+                for (let def of CATALOG.filter((d) => only.includes(d.id))) {
+                    for (let m of def.methods) {
+                        for (let d of m.deals) {
+                            for (let keyIn of d.keyIn ? [d.keyIn] : (def.keysIn.length ? def.keysIn : ['none'])) {
+                                let pre = `${def.cointpe}_${def.keyKind}_${keyIn}_${d.keyOut}_${m.method}_`
+                                let nm = meta.nm[nmKeyOf(def, m.method, keyIn, d.keyOut)]
+                                assert.ok(nm, pre)
+                                let zs = r.keys.filter((k) => k.startsWith(pre)).map((k) => ({ period: k.slice(pre.length), z: readSer(c, k).filter((v) => v.time >= win.timeStart && v.time <= win.timeEnd && Number.isFinite(v.param)).map((v) => v.param) }))
+                                assert.ok(zs.length > 0, pre)
+                                let groups = nmScope === 'period' ? zs.filter((v) => nm.byPeriod[v.period]).map((v) => v.z) : [zs.flatMap((v) => v.z)]
+                                for (let z of groups) {
+                                    let s = brute(z)
+                                    assert.ok(Math.abs(s.avg) <= 1e-8 && Math.abs(s.std - 1) <= 1e-8, `${pre}: 期間內之平均${s.avg}、標準差${s.std}`)
+                                    nGroup++
+                                }
+                            }
+                        }
+                    }
+                }
+                assert.ok(nGroup >= (nmScope === 'period' ? 50 : 15), String(nGroup))
+            }
+        })
+
+        it('已凍結nm之工作根(值為舊口徑者)不recalibrate時沿用: 序列 = (全部K線之原值 − 凍結值) ÷ 凍結尺度; 再跑一次(含另給nm期間)全部序列檔與meta(遮蔽at)逐位元組不變、nmComputed 0; recalibrate才改用本口徑', async function() {
+            this.timeout(120000)
+            let { c, ohlc, win } = await mkRoot('win-frozen')
+            await buildParams(c, optW({ nmPeriod: win }))
+            //以舊口徑(切到nm期間後重算)之值作為既有工作根之凍結值
+            let meta = readMeta(c)
+            let legacy = {}
+            for (let keyOut of ['C', 'R']) {
+                legacy[nkW(keyOut)] = nmDef(pooled(await rawIn(ohlc.slice(I1, I2 + 1), keyOut, null)), 'meanStd')
+                assert.ok(!near(legacy[nkW(keyOut)].avg, meta.nm[nkW(keyOut)].avg, 1e-6), '前提: 舊口徑之值異於本口徑')
+            }
+            meta.nm = legacy
+            fs.writeFileSync(path.resolve(c.fds.meta, 'params.json'), JSON.stringify(meta))
+            let r1 = await buildParams(c, optW())
+            assert.strictEqual(r1.nmComputed, 0)
+            assert.deepStrictEqual(readMeta(c).nm, legacy)
+            let full = await rawIn(ohlc, 'C', null)
+            assert.ok(readSer(c, 'price_ohlc_none_C_myw_p60').every((v, i) => near(v.param, (full.p60[i] - legacy[nkW('C')].avg) / legacy[nkW('C')].std)))
+            let files = bytesOf(c)
+            let metaRaw = readMetaMask(c)
+            let r2 = await buildParams(c, optW({ nmPeriod: { timeStart: ohlc[0].time, timeEnd: ohlc[99].time } }))
+            assert.strictEqual(r2.nmComputed, 0)
+            assert.deepStrictEqual(bytesOf(c), files)
+            assert.strictEqual(readMetaMask(c), metaRaw)
+            //recalibrate: 改用本口徑
+            await buildParams(c, optW({ nmPeriod: win, recalibrate: true }))
+            for (let keyOut of ['C', 'R']) {
+                let exp = nmDef(pooled(await rawIn(ohlc, keyOut, win)), 'meanStd')
+                assert.ok(near(readMeta(c).nm[nkW(keyOut)].avg, exp.avg) && near(readMeta(c).nm[nkW(keyOut)].std, exp.std), keyOut)
+            }
+            assert.notDeepStrictEqual(bytesOf(c), files)
+        })
+
+        it('既有工作根(nm期間凍結於資料中段)加入新定義: 新nm以凍結之期間按本口徑自算(同全新建立者); 既有nm與序列逐位不變', async function() {
+            this.timeout(120000)
+            let { c, ohlc, win } = await mkRoot('win-add')
+            await buildParams(c, optW({ nmPeriod: win }))
+            let nm0 = readMeta(c).nm
+            let files0 = bytesOf(c)
+            let r = await buildParams(c, { defs: [defW(), defW('price_ohlc_myw2', 'myw2')], calcs: { myw: calcWin, myw2: calcWin } })
+            assert.strictEqual(r.nmComputed, 2)
+            let nm1 = readMeta(c).nm
+            for (let keyOut of ['C', 'R']) {
+                assert.deepStrictEqual(nm1[nkW(keyOut)], nm0[nkW(keyOut)])
+                let exp = nmDef(pooled(await rawIn(ohlc, keyOut, win)), 'meanStd')
+                let got = nm1[nkW(keyOut, 'price_ohlc_myw2', 'myw2')]
+                assert.ok(near(got.avg, exp.avg) && near(got.std, exp.std), keyOut)
+                assert.deepStrictEqual(got, nm0[nkW(keyOut)], '同一計算、同一期間 ⇒ 與首次建立者逐位相同')
+            }
+            let files1 = bytesOf(c)
+            for (let [fn, h] of Object.entries(files0)) {
+                assert.strictEqual(files1[fn], h, fn)
+            }
+        })
+
+        it('nm期間內無K線即拋(期間只決定取哪些值入統計, 不因指標以全部K線計算而略過此檢核)', async function() {
+            let { c } = await mkRoot('win-empty')
+            await assert.rejects(buildParams(c, optW({ nmPeriod: { timeStart: '2030-01-01T00:00:00', timeEnd: '2030-02-01T00:00:00' } })), /nm期間/)
+        })
+
+        it('定義內同一method之多個項目與多個keyIn各用自己之optMethod(含函數值之選項)與keyIn: 寫出之序列各自為其原值之z分數', async function() {
+            this.timeout(120000)
+            let { c, ohlc, win } = await mkRoot('win-multi')
+            let calcK = async (arr, keyIn, om) => [{ period: 'p', len: 1, vs: arr.map((v, i) => ({ time: v.time, A: om.f(v[keyIn]) + (i % 7), B: om.f(v[keyIn]) + (i % 5) })) }]
+            let FNS = { A: (x) => x * 2, B: (x) => x * x }
+            let defs = [{ id: 'price_ohlc_myk', cointpe: 'price', keyKind: 'ohlc', fields: ['Open', 'Close'], keysIn: ['Close', 'Open'], methods: [{ method: 'myk', optMethod: { f: FNS.A }, deals: [{ keyOut: 'A' }] }, { method: 'myk', optMethod: { f: FNS.B }, deals: [{ keyOut: 'B' }] }] }]
+            await buildParams(c, { defs, calcs: { myk: calcK }, nmPeriod: win })
+            for (let keyIn of ['Close', 'Open']) {
+                for (let keyOut of ['A', 'B']) {
+                    let raw = (await calcK(ohlc, keyIn, { f: FNS[keyOut] }))[0].vs
+                    let exp = nmDef(raw.filter((v) => v.time >= win.timeStart && v.time <= win.timeEnd).map((v) => v[keyOut]), 'meanStd')
+                    let ser = readSer(c, `price_ohlc_${keyIn}_${keyOut}_myk_p`)
+                    assert.strictEqual(ser.length, N)
+                    assert.ok(ser.every((v, i) => near(v.param, (raw[i][keyOut] - exp.avg) / exp.std)), `${keyIn} ${keyOut}`)
+                }
+            }
+        })
+
+        //index側校正之合成資料: 指標值依資料起點之收盤(arr[0].Close); 價格側與溢價指數側於nm期間外之分布皆不同
+        let calAr = () => {
+            let M = 700
+            let ts = genTimes(M)
+            let frac = (x) => x - Math.floor(x)
+            let bar = (time, v) => ({ time, Open: v, High: v, Low: v, Close: v })
+            let P = ts.map((time, i) => {
+                let u = frac((i + 1) * 0.6180339887498949)
+                return bar(time, i >= 300 && i < 600 ? 0.01 + 0.6 * u * u : 2 + 3 * Math.sqrt(u))
+            })
+            let I = ts.map((time, i) => {
+                let u = frac((i + 1) * 0.41421356237309515)
+                let shift = i < 300 ? 0.9 : (i < 600 ? 0 : 0.5)
+                return bar(time, i === 0 ? 0.3 : (i === 300 ? 0.03 : 0.01 + 0.6 * u * u + shift))
+            })
+            return { ts, P, I, win: { timeStart: ts[300], timeEnd: ts[599] } }
+        }
+        let calcCal = async (arr, keyIn, om = {}) => [{
+            period: 'p',
+            len: 1,
+            vs: arr.slice(1).map((v) => {
+                let y = om.plusClose === undefined ? Math.log(v.Close) : Math.log(v.Close - arr[0].Close + om.plusClose)
+                return { time: v.time, X: y, XMod: y }
+            }),
+        }]
+        let calOracle = (arrI, arrP, fSrc, fRef = fSrc) => wdt.dataCalibrate(
+            async (arr, keyIn, om) => (om.plusClose === undefined ? fRef : fSrc)(await calcCal(arr, keyIn, om)),
+            arrI, arrP, [{ keyOutSrc: 'XMod', keyOutRef: 'X' }], { plusClose: 1 }, { keyIn: 'none', params: ['plusClose'], optMethodRef: {} })
+        let inRange = (t1, t2) => (rrs) => rrs.map((r) => ({ ...r, vs: r.vs.filter((v) => (t1 === null || v.time >= t1) && (t2 === null || v.time <= t2)) }))
+
+        it('index側校正同口徑: 目標只取nm期間內之值(價格側與溢價指數側皆然)而指標自資料起點計算; 校正之計算只餵至nm期間之末', async function() {
+            this.timeout(180000)
+            let { ts, P, I, win } = calAr()
+            let root = path.resolve(fdTmp, 'win-cal')
+            let c = normalizeCfg({ root, name: 'TST', symbol: 'TSTUSDT', interval: '4hr', timeZone: 'UTC', timeBegin: ts[0], source: { price: P, index: I }, train: { timeStart: ts[0], timeEnd: ts[ts.length - 1] } })
+            await buildOhlc(c)
+            let same = inRange(win.timeStart, win.timeEnd)
+            let exp = await calOracle(I, P, same)
+            //前提(鑑別力): 舊口徑(切到期間後重算)、不取窗、只取單側界線之目標, 其所得之參數或分數皆不同
+            let upto = (a) => a.filter((v) => v.time <= win.timeEnd)
+            let others = {
+                old: await calOracle(I.slice(300, 600), P.slice(300, 600), inRange(null, null)),
+                noWindow: await calOracle(I, P, inRange(null, null)),
+                onlyStart: await calOracle(I, P, inRange(win.timeStart, null)),
+                onlyEnd: await calOracle(I, P, inRange(null, win.timeEnd)),
+                refNoWindow: await calOracle(upto(I), upto(P), same, inRange(null, null)),
+            }
+            for (let [tag, o] of Object.entries(others)) {
+                assert.ok(o.optMethod.plusClose !== exp.optMethod.plusClose || Math.abs(o.scoreBest - exp.scoreBest) > 0.01, `前提: ${tag}`)
+            }
+            assert.deepStrictEqual(exp.optMethod, { plusClose: 0.3 }) //資料起點之溢價指數收盤為0.3
+            assert.deepStrictEqual(others.old.optMethod, { plusClose: 0.03 }) //nm期間首根之收盤為0.03
+            //本套件
+            let seen = []
+            let spy = async (arr, keyIn, om) => {
+                seen.push({ t1: arr[0].time, t2: arr[arr.length - 1].time })
+                return calcCal(arr, keyIn, om)
+            }
+            let defs = [
+                { id: 'price_ohlc_cal', cointpe: 'price', keyKind: 'ohlc', fields: ['Close'], keysIn: [], methods: [{ method: 'mycal', deals: [{ keyOut: 'X' }] }] },
+                { id: 'index_ohlc_cal', cointpe: 'index', keyKind: 'ohlc', fields: ['Close'], keysIn: [], methods: [{ method: 'mycal', optMethod: { plusClose: 1 }, deals: [{ keyOut: 'XMod' }] }] },
+            ]
+            let r = await buildParams(c, { defs, calcs: { mycal: spy }, nmPeriod: win })
+            assert.strictEqual(r.calibrated.length, 1)
+            assert.deepStrictEqual(r.calibrated[0].optMethod, exp.optMethod)
+            assert.ok(near(r.calibrated[0].score0, exp.score0, 1e-12) && near(r.calibrated[0].scoreBest, exp.scoreBest, 1e-12))
+            assert.deepStrictEqual(readMeta(c).optMethod['index_ohlc_cal:mycal'], exp.optMethod)
+            assert.ok(seen.every((v) => v.t1 === ts[0]), '各次計算之K線皆自資料起點')
+            assert.deepStrictEqual([...new Set(seen.map((v) => v.t2))].sort(), [win.timeEnd, ts[ts.length - 1]], '校正餵至nm期間之末; nm與寫出餵全部')
+            assert.ok(seen.filter((v) => v.t2 === win.timeEnd).length >= exp.nEval, '校正之各次計算皆止於nm期間之末')
+        })
+
+    })
+
+    //空序列檔(規則帳本TS-33): buildParams寫出後移除param/內內容解析後為長度0之陣列之序列檔(根數不足之期、期間內未曾成立之門檻; 含舊版本寫出者與本次未處理之定義者), 不列入keys; 有移除時記於meta.emptyKeys並於回傳列出, 無移除時兩處皆無此欄; 非空者、解析失敗或非陣列者不動
+    //  下游(w-data-tdprovide之buildGetTimeSeriesByTimeRange)讀入param/全部序列且拒收空陣列
+    describe('空序列檔之移除', function() {
+
+        let listParam = (c) => fs.readdirSync(c.fds.param).sort()
+        let keysParam = (c) => listParam(c).filter((f) => f.endsWith('.json')).map((f) => f.slice(0, -5))
+        let isEmptyJson = (fp) => {
+            try {
+                let v = JSON.parse(fs.readFileSync(fp, 'utf8'))
+                return Array.isArray(v) && v.length === 0
+            }
+            catch (err) {
+                return false
+            }
+        }
+        let emptyFiles = (c) => listParam(c).filter((f) => f.endsWith('.json') && fs.statSync(path.resolve(c.fds.param, f)).isFile() && isEmptyJson(path.resolve(c.fds.param, f)))
+        let readMeta = (c) => JSON.parse(fs.readFileSync(path.resolve(c.fds.meta, 'params.json'), 'utf8'))
+        let bufOf = (c, fn) => fs.readFileSync(path.resolve(c.fds.param, fn))
+        //keys180, 根數180之期(4hr為'30day')於volx(10個輸出)、flow(12個輸出)之鍵: 根數不足721(volx)、570(flow)即無值
+        let keys180 = (methods) => EXTRA.filter((x) => methods.includes(x.method)).flatMap((x) => x.outs.map((o) => extraKey(x, o, '30day'))).sort()
+        let mk = async (name, n) => {
+            let { cfg } = cfgFull(name, n)
+            let c = normalizeCfg(cfg)
+            await buildOhlc(c)
+            return c
+        }
+
+        it('500根(4hr)內建目錄全算: param/無空序列檔; keys不含之(1160 − 22 = 1138); meta.emptyKeys與回傳列出恰為volx與flow之根數180期之22鍵', async function() {
+            this.timeout(180000)
+            let c = await mk('empty-full', 500)
+            let r = await buildParams(c)
+            let exp = keys180(['volx', 'flow'])
+            assert.strictEqual(exp.length, 22)
+            assert.deepStrictEqual([...r.emptyKeys].sort(), exp)
+            assert.deepStrictEqual(readMeta(c).emptyKeys, r.emptyKeys)
+            assert.deepStrictEqual(emptyFiles(c), [])
+            assert.strictEqual(r.nKeys, 1138)
+            assert.deepStrictEqual([...r.keys].sort(), keysParam(c).sort()) //列舉次序依檔案系統, 比集合
+            assert.ok(exp.every((k) => !r.keys.includes(k)))
+        })
+
+        it('短數據之工作根(500根): 其後buildCache、sweepSingle、solve、recomputeStrategies(verify)可跑(對照: 下游拒收空陣列序列)', async function() {
+            this.timeout(240000)
+            let { cfg } = cfgOf(fdTmp, 500, { root: path.resolve(fdTmp, 'empty-down') })
+            let pl = createPipeline(cfg)
+            await pl.buildOhlc()
+            let r = await pl.buildParams({ only: ['price_ohlc_close', 'price_ohlc_rsi', 'price_ohlc_volx', 'price_ohlc_flow', 'index_ohlc_close'] })
+            assert.deepStrictEqual([...r.emptyKeys].sort(), keys180(['volx', 'flow']))
+            await pl.buildCache({ tps: [3, 5] })
+            //對照: 放回一個空序列檔, 下游即拒(本套件移除之依據)
+            let fpEmpty = path.resolve(pl.cfg.fds.param, `${r.emptyKeys[0]}.json`)
+            fs.writeFileSync(fpEmpty, '[]')
+            await assert.rejects(async () => pl.sweepSingle({ numTradeFinMin: 3, takeLimit: 1 }), /no data/)
+            fs.rmSync(fpEmpty)
+            let s = await pl.sweepSingle({ numTradeFinMin: 3, takeLimit: 2 })
+            assert.strictEqual(s.nFactors, r.nKeys)
+            let st = await pl.solve({ ...quickDetOf({ thNumTrade: 1, thRWin: 0, thEqYr: -1e9, thsTp: [3, 5], thsSl: [3, 5], oml: { Np: 6, NContiguous: 3, Ng: 15 } }, 1, 'long'), maxRounds: 1, workers: 0 })
+            assert.ok(st.nStrategies >= 1)
+            let v = await pl.recomputeStrategies({ mode: 'verify', takeLimit: 1, fdReport: path.resolve(fdTmp, 'empty-down-rep') })
+            assert.strictEqual(v.counts.ok, st.nStrategies, JSON.stringify(v.counts))
+        })
+
+        it('既有工作根含舊版本寫出之空序列檔(含本次未處理之定義者、各種空陣列寫法): 重跑即移除並列出; 非空陣列、非陣列、解析失敗、0位元組、非.json者與資料夾皆不動; 非空序列檔逐位元組不變', async function() {
+            this.timeout(180000)
+            let c = await mk('empty-old', 500)
+            let first = await buildParams(c, { only: ['price_ohlc_close', 'price_ohlc_rsi', 'price_ohlc_volx'] })
+            assert.deepStrictEqual([...first.emptyKeys].sort(), keys180(['volx']))
+            let plant = (fn, s) => fs.writeFileSync(path.resolve(c.fds.param, fn), s)
+            //舊版本寫出之空檔(本次排除之volx與未算之flow)與其他空陣列寫法
+            let empties = ['price_ohlc_none_rv_volx_30day', 'price_ohlc_none_buyL_flow_30day', 'x_space', 'x_newline', 'x_padded']
+            plant(`${empties[0]}.json`, '[]')
+            plant(`${empties[1]}.json`, '[]')
+            plant('x_space.json', '[ ]')
+            plant('x_newline.json', ' \r\n[\t\r\n]\n')
+            plant('x_padded.json', `[${' '.repeat(300)}]`)
+            let keeps = {
+                'k_one.json': '[{"time":"2023-01-01T00:00:00","param":1}]',
+                'k_pad_one.json': `[${' '.repeat(300)}{"time":"2023-01-01T00:00:00","param":2}]`,
+                'k_nested.json': '[[]]',
+                'k_zero_item.json': '[0]',
+                'k_obj.json': '{}',
+                'k_null.json': 'null',
+                'k_str.json': '"[]"',
+                'k_bad_open.json': '[',
+                'k_bad_tail.json': '[]x',
+                'k_bad_nbsp.json': '[ ]',
+                'k_empty_file.json': '',
+                'k_text.txt': '[]',
+            }
+            for (let [fn, s] of Object.entries(keeps)) {
+                plant(fn, s)
+            }
+            fs.mkdirSync(path.resolve(c.fds.param, 'k_dir.json'))
+            let before = {}
+            for (let fn of listParam(c)) {
+                if (fn !== 'k_dir.json' && !empties.includes(fn.replace(/\.json$/, ''))) {
+                    before[fn] = bufOf(c, fn)
+                }
+            }
+            let r = await buildParams(c, { only: ['price_ohlc_close', 'price_ohlc_rsi', 'price_ohlc_volx'], exclude: ['price_ohlc_volx'] })
+            assert.deepStrictEqual([...r.emptyKeys].sort(), [...empties].sort())
+            assert.deepStrictEqual(readMeta(c).emptyKeys, r.emptyKeys)
+            assert.ok(empties.every((k) => !fs.existsSync(path.resolve(c.fds.param, `${k}.json`)) && !r.keys.includes(k)))
+            assert.deepStrictEqual(listParam(c), [...Object.keys(before), 'k_dir.json'].sort())
+            for (let [fn, buf] of Object.entries(before)) {
+                assert.ok(bufOf(c, fn).equals(buf), `逐位元組不變: ${fn}`)
+            }
+            assert.ok(fs.statSync(path.resolve(c.fds.param, 'k_dir.json')).isDirectory())
+            assert.ok(['k_one', 'k_obj', 'k_empty_file'].every((k) => r.keys.includes(k)), '未移除者照舊列入keys')
+        })
+
+        it('數據增長後原本無值之期寫出並列入keys(meta與回傳無emptyKeys), 數據縮短後再移除', async function() {
+            this.timeout(180000)
+            let root = path.resolve(fdTmp, 'empty-grow')
+            let run = async (n) => {
+                let { cfg } = cfgFull('empty-grow', n, { train: { timeStart: '2023-01-01T00:00:00', timeEnd: '2023-03-01T00:00:00' } })
+                assert.strictEqual(cfg.root, root)
+                let c = normalizeCfg(cfg)
+                await buildOhlc(c)
+                let r = await buildParams(c, { only: ['price_ohlc_volx', 'price_ohlc_rsi'] })
+                return { c, r }
+            }
+            let a = await run(500)
+            assert.deepStrictEqual([...a.r.emptyKeys].sort(), keys180(['volx']))
+            let b = await run(900)
+            assert.ok(!('emptyKeys' in b.r) && !('emptyKeys' in readMeta(b.c)))
+            assert.ok(keys180(['volx']).every((k) => b.r.keys.includes(k)))
+            assert.strictEqual(b.r.nKeys, a.r.nKeys + 10)
+            let d = await run(500)
+            assert.deepStrictEqual([...d.r.emptyKeys].sort(), keys180(['volx']))
+            assert.deepStrictEqual(readMeta(d.c).emptyKeys, d.r.emptyKeys)
+            assert.deepStrictEqual(d.r.keys, a.r.keys)
+        })
+
+        it('自訂method之某期無值亦移除(各定義一致); 全部期別有值時回傳與meta無emptyKeys', async function() {
+            this.timeout(120000)
+            let c = await mk('empty-custom', 100)
+            let calcE = async (arr, keyIn, om) => [{ period: 'full', len: 1, vs: arr.map((v) => ({ time: v.time, X: v.Close })) }, { period: 'none', len: 2, vs: om.none === true ? [] : arr.map((v) => ({ time: v.time, X: v.Open })) }]
+            let def = (optMethod) => ({ id: 'price_ohlc_mye', cointpe: 'price', keyKind: 'ohlc', fields: ['Close'], keysIn: [], methods: [{ method: 'mye', optMethod, deals: [{ keyOut: 'X' }] }] })
+            let r0 = await buildParams(c, { defs: [def({ none: false })], calcs: { mye: calcE } })
+            assert.ok(!('emptyKeys' in r0) && !('emptyKeys' in readMeta(c)))
+            assert.deepStrictEqual(r0.keys, ['price_ohlc_none_X_mye_full', 'price_ohlc_none_X_mye_none'])
+            let r1 = await buildParams(c, { defs: [def({ none: true })], calcs: { mye: calcE } })
+            assert.deepStrictEqual(r1.emptyKeys, ['price_ohlc_none_X_mye_none'])
+            assert.deepStrictEqual(r1.keys, ['price_ohlc_none_X_mye_full'])
         })
 
     })

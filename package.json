@@ -1,6 +1,6 @@
 {
   "name": "w-trade-strategy",
-  "version": "1.0.45",
+  "version": "1.0.46",
   "main": "dist/w-trade-strategy.umd.js",
   "dependencies": {
     "w-data-csv": "^1.0.77",

@@ -88,6 +88,55 @@ let listJsonKeys = (fd) => {
 }
 
 
+//isEmptyArrayJson, 檔案內容解析後是否為長度0之陣列; 無法讀取(含資料夾)、解析失敗或非陣列者皆為false
+//  先讀前64位元組: 「[」之後(略過空白)尚有「]」以外之內容者不可能是空陣列, 即不讀全檔(一般之序列檔數百KB, 於此判定)
+let isEmptyArrayJson = (fp) => {
+    let head = ''
+    try {
+        let h = fs.openSync(fp, 'r')
+        try {
+            let buf = Buffer.alloc(64)
+            head = buf.toString('utf8', 0, fs.readSync(h, buf, 0, buf.length, 0))
+        }
+        finally {
+            fs.closeSync(h)
+        }
+    }
+    catch (err) {
+        return false
+    }
+    if (/^\s*\[\s*[^\s\]]/.test(head)) {
+        return false
+    }
+    let v = readJsonOr(fp, null)
+    return Array.isArray(v) && v.length === 0
+}
+
+
+/**
+ * 刪除資料夾內第1層內容解析後為長度0之陣列之json檔(例如無值之期所成之空序列檔)，其餘檔(非空陣列、非陣列、解析失敗、無法讀取、非json副檔名)與子資料夾一律不動
+ *
+ * @function
+ * @param {String} fd 輸入資料夾路徑字串
+ * @returns {Array} 回傳已刪除檔案之主檔名字串陣列(依listJsonKeys之次序)，資料夾不存在時回傳[]
+ * @example
+ * need test in nodejs.
+ *
+ * let keys = removeEmptyArrayJsons('./data/param')
+ */
+let removeEmptyArrayJsons = (fd) => {
+    let removed = []
+    for (let k of listJsonKeys(fd)) {
+        let fp = path.resolve(fd, `${k}.json`)
+        if (isEmptyArrayJson(fp)) {
+            fs.rmSync(fp)
+            removed.push(k)
+        }
+    }
+    return removed
+}
+
+
 /**
  * 計算資料夾內第1層json檔數
  *
@@ -147,4 +196,4 @@ let cleanFolder = (fd) => {
 let nowIso = () => new Date().toISOString()
 
 
-export { ensureFolder, readJsonOr, writeJson, listJsonKeys, countJson, cleanFolder, nowIso }
+export { ensureFolder, readJsonOr, writeJson, listJsonKeys, removeEmptyArrayJsons, countJson, cleanFolder, nowIso }

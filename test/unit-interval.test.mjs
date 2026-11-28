@@ -293,7 +293,8 @@ describe('interval(每根時長、時間口徑與求解新選項之接線)', fun
     it('根數為本(端到端): 同一串K線以4hr與1day計, 內建目錄全算之鍵數同為1160(874 + 方向改變法16 + 動能、波動延伸、下跌統計、主動買賣量流270)、標籤依根數 × 每根時長一一對應(門檻標籤不變)、各序列逐值相同', async function() {
         this.timeout(180000)
         let mk = async (name, interval, stepMs) => {
-            let { cfg } = cfgOf(fdTmp, 400, { root: path.resolve(fdTmp, name), interval, stepMs })
+            //750根: 不少於內建目錄各期別皆有值之721根(volx根數180之期), 全算1160鍵無無值之期(無值之期不寫出, TS-33)
+            let { cfg } = cfgOf(fdTmp, 750, { root: path.resolve(fdTmp, name), interval, stepMs })
             let pl = createPipeline(cfg)
             await pl.buildOhlc()
             let r = await pl.buildParams()
@@ -303,6 +304,7 @@ describe('interval(每根時長、時間口徑與求解新選項之接線)', fun
         let b = await mk('e2e1d', '1day', DAY)
         assert.strictEqual(a.r.nKeys, 1160)
         assert.strictEqual(b.r.nKeys, 1160)
+        assert.ok(!('emptyKeys' in a.r) && !('emptyKeys' in b.r)) //各期別皆有值: 回傳無emptyKeys
         //動能(momz)、波動延伸(volx)、下跌統計(down)、主動買賣量流(flow): 預設納入; 各為 輸出 × 9期 = 45、90、27、108鍵, 期別標籤 = 根數(3、4、5、6、12、24、42、90、180) × 每根時長
         let labelsOf = (keys, method) => [...new Set(keys.filter((k) => k.split('_')[4] === method).map((k) => k.split('_')[5]))]
         for (let [method, nKeys] of [['momz', 45], ['volx', 90], ['down', 27], ['flow', 108]]) {
